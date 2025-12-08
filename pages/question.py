@@ -137,7 +137,7 @@ def paint_history():
         )
 
 
-llm_api_key = "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"
+llm_api_key = llm_api_key = st.secrets["OPENAI_API_KEY"]
 
 
 # 11주차 내용 llm 설정
