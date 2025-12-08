@@ -159,7 +159,7 @@ with col_a:
 # (2) 난이도별 정답률
 with col_b:
     st.subheader("✅ 정답률")
-    acc_df = qsum.assign(정답값=lambda d: d["정답"].astype(int)) \
+    acc_df = qsum.assign(정답값=lambda d: d["정답"].fillna(0).astype(int))
         .groupby("difficulty", as_index=False)["정답값"].mean() \
         .rename(columns={"정답값": "정답률"})
 
