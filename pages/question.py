@@ -253,9 +253,7 @@ st.write(f"{st.session_state.qid}. {row['Question']}")
 if 'Image' in row.index and pd.notna(row.get('Image')) and str(row['Image']).strip():
     image_path = IMAGE_FOLDER + str(row['Image']).strip()
     try:
-        col1, col2, col3 = st.columns([1, 2, 1])  # 비율 조절 가능
-        with col2:
-            st.image(image_path, caption="영상 소견", width=500)
+        st.image(image_path, caption="영상 소견", use_container_width=True)
     except:
         st.warning(f"이미지를 불러올 수 없습니다: {row['Image']}")
 
