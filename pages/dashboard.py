@@ -159,11 +159,9 @@ with col_a:
 # (2) 난이도별 정답률
 with col_b:
     st.subheader("✅ 정답률")
-    acc_df = qsum.assign(정답값=lambda d: d["정답"].fillna(0).astype(int))
+    acc_df = qsum.assign(정답값=lambda d: d["정답"].fillna(0).astype(int)) \
         .groupby("difficulty", as_index=False)["정답값"].mean() \
         .rename(columns={"정답값": "정답률"})
-
-
     fig = px.bar(acc_df, x="difficulty", y="정답률", text="정답률", range_y=[0, 1])
     fig.update_traces(texttemplate="%{text:.0%}", textposition="outside")
     fig.update_layout(margin=dict(l=10, r=10, t=20, b=10), xaxis_title="난이도", yaxis_tickformat=",.0%")
