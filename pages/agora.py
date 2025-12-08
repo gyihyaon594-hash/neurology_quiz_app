@@ -5,6 +5,9 @@ from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="질의응답", page_icon="💬")
 
+# 관리자 목록
+ADMIN_USERS = ["윤지환"]
+
 # 로그인 확인
 if 'user_id' not in st.session_state or not st.session_state.user_id:
     st.warning("홈에서 먼저 등록해주세요.")
@@ -41,6 +44,7 @@ if st.button("질문 제출"):
             datetime.now().strftime("%Y-%m-%d %H:%M")
         ])
         st.success("질문이 등록되었습니다!")
+        st.cache_resource.clear()
         st.rerun()
     else:
         st.warning("질문을 입력해주세요.")
@@ -51,9 +55,19 @@ st.subheader("📋 질문 목록")
 data = sheet.get_all_records()
 
 if data:
-    for q in reversed(data):
-        st.markdown(f"**{q['user']}** ({q['time']})")
-        st.write(q['question'])
+    for i, q in enumerate(reversed(data)):
+        row_num = len(data) - i + 1  # 실제 행 번호 (헤더 제외)
+        col1, col2 = st.columns([10, 1])
+        with col1:
+            st.markdown(f"**{q['user']}** ({q['time']})")
+            st.write(q['question'])
+        with col2:
+            # 관리자만 삭제 버튼 표시
+            if st.session_state.user_id in ADMIN_USERS:
+                if st.button("🗑️", key=f"del_{i}"):
+                    sheet.delete_rows(row_num)
+                    st.cache_resource.clear()
+                    st.rerun()
         st.divider()
 else:
     st.info("아직 등록된 질문이 없습니다.")
