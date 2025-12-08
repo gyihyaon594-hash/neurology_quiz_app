@@ -242,7 +242,7 @@ DF_PATH = "questions.xlsx"
 df = load_data(DF_PATH)
 
 # 파일 상단에 경로 설정================================
-IMAGE_FOLDER = "C:/Users/jihwa/Documents/AIapp/image/"
+IMAGE_FOLDER = "image/"
 
 # 문제 표시 부분 (기존 코드 아래에 추가)
 row = df.iloc[st.session_state.qid - 1]
