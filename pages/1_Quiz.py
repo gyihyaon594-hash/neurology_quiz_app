@@ -268,7 +268,7 @@ if "qid" not in st.session_state:
         question_id=st.session_state.qid
     )
 
-# 현재 진행 상태 저장 (이 줄 추가)
+# 진행 상태 저장 (추가)
 save_progress(st.session_state.user_id, st.session_state.qid)
 
 DF_PATH = "questions.xlsx"
