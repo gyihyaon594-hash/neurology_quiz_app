@@ -246,7 +246,6 @@ IMAGE_FOLDER = "image/"
 
 # 문제 표시 부분 (기존 코드 아래에 추가)
 row = df.iloc[st.session_state.qid - 1]
-st.write("**빈칸에 알맞은 말을 고르세요.**")
 st.write(f"{st.session_state.qid}. {row['Question']}")
 
 # 이미지 표시 추가
