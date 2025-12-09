@@ -345,14 +345,33 @@ else:
         follow_up(follow_up_question)
 
     if st.session_state.qid == len(df):
-        if st.button("✅ 완료"):
-            log_user_action(
-                action="end",
-                user_id=st.session_state.user_id,
-                question_id=st.session_state.qid
-            )
-            st.success("모든 문제를 완료했습니다. 수고하셨어요! 🎉")
-            st.switch_page("pages/2_대쉬보드.py")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ 완료"):
+                log_user_action(
+                    action="end",
+                    user_id=st.session_state.user_id,
+                    question_id=st.session_state.qid
+                )
+                st.success("모든 문제를 완료했습니다. 수고하셨어요! 🎉")
+                st.switch_page("pages/2_대쉬보드.py")
+        with col2:
+            if st.button("🔄 처음부터 다시"):
+                st.session_state.qid = 1
+                save_progress(st.session_state.user_id, st.session_state.qid)
+                st.session_state.submitted = False
+                st.session_state.selected = None
+                st.session_state.start_time = datetime.now()
+                st.session_state.learning_feedback = None
+                st.session_state.feedback_given = False
+                st.session_state.messages = []
+                st.session_state.learning_history = []
+                log_user_action(
+                    action="restart",
+                    user_id=st.session_state.user_id,
+                    question_id=1
+                )
+                st.rerun()
     else:
         if st.button("다음 문제 ▶"):
             st.session_state.qid += 1
