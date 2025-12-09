@@ -347,28 +347,28 @@ else:
     if st.button("다음 문제 ▶"):
         # 모든 문제 완료 시
         if st.session_state.qid == len(df):
-            st.write("모든 문제를 완료했습니다. 수고하셨어요! 🎉")
+        if st.button("✅ 완료"):
             log_user_action(
                 action="end",
                 user_id=st.session_state.user_id,
                 question_id=st.session_state.qid
-                )
-            st.stop()
-        else:
+            )
+            st.success("모든 문제를 완료했습니다. 수고하셨어요! 🎉")
+            st.switch_page("pages/2_대쉬보드.py")
+    else:
+        if st.button("다음 문제 ▶"):
             st.session_state.qid += 1
-            save_progress(st.session_state.user_id, st.session_state.qid)  # 진행 상태 저장 추가
+            save_progress(st.session_state.user_id, st.session_state.qid)
             st.session_state.submitted = False
             st.session_state.selected = None
             st.session_state.start_time = datetime.now()
             st.session_state.learning_feedback = None
             st.session_state.feedback_given = False
-
-            #11주차
             st.session_state.messages = []
 
             log_user_action(
-            action="start_question",
-            user_id=st.session_state.user_id,
-            question_id=st.session_state.qid
+                action="start_question",
+                user_id=st.session_state.user_id,
+                question_id=st.session_state.qid
             )
             st.rerun()
