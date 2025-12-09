@@ -55,9 +55,9 @@ def save_progress(user_id, qid):
     try:
         cell = sheet.find(user_id)
         sheet.update_cell(cell.row, 2, qid)
-        sheet.update_cell(cell.row, 3, datetime.now().strftime("%Y-%m-%d %H:%M"))
+        sheet.update_cell(cell.row, 3, datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
     except:
-        sheet.append_row([user_id, qid, datetime.now().strftime("%Y-%m-%d %H:%M")])
+        sheet.append_row([user_id, qid, datetime.utcnow().strftime("%Y-%m-%d %H:%M")])
 
 def render_feedback(selected: str, qrow: pd.Series):
     if st.session_state.feedback_given is True:
