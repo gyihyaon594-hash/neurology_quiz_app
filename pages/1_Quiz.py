@@ -10,7 +10,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
 
-st.set_page_config(page_title="문법 학습", page_icon="🤖")
+st.set_page_config(page_title="신경학 Quiz", page_icon="🤖")
 
 @st.cache_data
 def load_data(path: str) -> pd.DataFrame:
