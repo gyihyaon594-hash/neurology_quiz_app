@@ -345,7 +345,7 @@ else:
         follow_up(follow_up_question)
 
     if st.session_state.qid == len(df):
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns([1, 1, 3])
         with col1:
             if st.button("✅ 완료"):
                 log_user_action(
