@@ -26,7 +26,7 @@ def get_google_sheet():
     )
     client = gspread.authorize(credentials)
     sheet_url = st.secrets["google_sheets"]["spreadsheet_url"]
-    sheet = client.open_by_url(sheet_url).sheet1
+    sheet = client.open_by_url(sheet_url).worksheet("질문")
     return sheet
 
 sheet = get_google_sheet()
