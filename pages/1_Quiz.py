@@ -353,8 +353,26 @@ else:
         follow_up(follow_up_question)
 
     if st.session_state.qid == len(df):
-        col1, col2, col3 = st.columns([1, 1, 3])
+        col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
+            # 이전 문제 버튼 (첫 문제가 아닐 때만 활성화)
+            if st.session_state.qid > 1:
+                if st.button("◀ 이전 문제"):
+                    st.session_state.qid -= 1
+                    save_progress(st.session_state.user_id, st.session_state.qid)
+                    st.session_state.submitted = False
+                    st.session_state.selected = None
+                    st.session_state.start_time = datetime.now()
+                    st.session_state.learning_feedback = None
+                    st.session_state.feedback_given = False
+                    st.session_state.messages = []
+                    log_user_action(
+                        action="prev_question",
+                        user_id=st.session_state.user_id,
+                        question_id=st.session_state.qid
+                    )
+                    st.rerun()
+        with col2:
             if st.button("✅ 완료"):
                 log_user_action(
                     action="end",
@@ -363,7 +381,7 @@ else:
                 )
                 st.success("모든 문제를 완료했습니다. 수고하셨어요! 🎉")
                 st.switch_page("pages/2_대쉬보드.py")
-        with col2:
+        with col3:
             if st.button("🔄 다시풀기"):
                 st.session_state.qid = 1
                 save_progress(st.session_state.user_id, st.session_state.qid)
@@ -381,18 +399,38 @@ else:
                 )
                 st.rerun()
     else:
-        if st.button("다음 문제 ▶"):
-            st.session_state.qid += 1
-            save_progress(st.session_state.user_id, st.session_state.qid)
-            st.session_state.submitted = False
-            st.session_state.selected = None
-            st.session_state.start_time = datetime.now()
-            st.session_state.learning_feedback = None
-            st.session_state.feedback_given = False
-            st.session_state.messages = []
-            log_user_action(
-                action="start_question",
-                user_id=st.session_state.user_id,
-                question_id=st.session_state.qid
-            )
-            st.rerun()
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            # 이전 문제 버튼 (첫 문제가 아닐 때만 표시)
+            if st.session_state.qid > 1:
+                if st.button("◀ 이전 문제"):
+                    st.session_state.qid -= 1
+                    save_progress(st.session_state.user_id, st.session_state.qid)
+                    st.session_state.submitted = False
+                    st.session_state.selected = None
+                    st.session_state.start_time = datetime.now()
+                    st.session_state.learning_feedback = None
+                    st.session_state.feedback_given = False
+                    st.session_state.messages = []
+                    log_user_action(
+                        action="prev_question",
+                        user_id=st.session_state.user_id,
+                        question_id=st.session_state.qid
+                    )
+                    st.rerun()
+        with col2:
+            if st.button("다음 문제 ▶"):
+                st.session_state.qid += 1
+                save_progress(st.session_state.user_id, st.session_state.qid)
+                st.session_state.submitted = False
+                st.session_state.selected = None
+                st.session_state.start_time = datetime.now()
+                st.session_state.learning_feedback = None
+                st.session_state.feedback_given = False
+                st.session_state.messages = []
+                log_user_action(
+                    action="start_question",
+                    user_id=st.session_state.user_id,
+                    question_id=st.session_state.qid
+                )
+                st.rerun()
