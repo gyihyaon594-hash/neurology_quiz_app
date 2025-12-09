@@ -38,10 +38,11 @@ with st.form("register"):
             st.error("접근 권한이 없습니다. 이름과 휴대폰 번호를 확인해주세요.")
 
 if st.session_state.user_id:
-    st.page_link("pages/question.py", label="🚀 학습 시작", use_container_width=True)
+    st.page_link("pages/1_Quiz.py", label="🚀 학습 시작", use_container_width=True)
 else:
     if st.button("학습 시작"):
         st.warning("먼저 등록해주세요.")
+
 
 
 
