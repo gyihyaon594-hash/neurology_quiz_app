@@ -64,6 +64,7 @@ def render_feedback(selected: str, qrow: pd.Series):
     if st.session_state.feedback_given is True:
         return
     is_correct = (str(selected).strip() == str(qrow["Answer"]).strip())
+    st.session_state.is_correct = is_correct  # 정답 여부 저장
     choices = qrow['Choices'].split(', ')
 
 
@@ -240,7 +241,7 @@ empathy_with_history = RunnableWithMessageHistory(
     empathy_chain,
     get_shared_history,
     input_messages_key="learning_context",
-    history_messages_key="history", # get_shared_history에서 가져온 대화 이력(ChatMessageHistory.messages)을 MessagesPlaceholder("history") 자리에 넣기”
+    history_messages_key="history", # get_shared_history에서 가져온 대화 이력(ChatMessageHistory.messages)을 MessagesPlaceholder("history") 자리에 넣기"
 )
 
 
@@ -270,6 +271,8 @@ if "learning_history" not in st.session_state:
     st.session_state.learning_history = []
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "is_correct" not in st.session_state:
+    st.session_state.is_correct = None
 
 # 진행 상태 저장 (추가)
 save_progress(st.session_state.user_id, st.session_state.qid)
@@ -345,6 +348,22 @@ if not st.session_state.submitted:
             st.rerun()
 else:
     render_feedback(st.session_state.selected, row)
+    
+    # 오답일 경우 다시 풀기 버튼 추가
+    if st.session_state.is_correct == False:
+        if st.button("🔄 이 문제 다시 풀기"):
+            st.session_state.submitted = False
+            st.session_state.selected = None
+            st.session_state.start_time = datetime.now()
+            st.session_state.feedback_given = False
+            st.session_state.is_correct = None
+            st.session_state.messages = []
+            log_user_action(
+                action="retry_question",
+                user_id=st.session_state.user_id,
+                question_id=st.session_state.qid
+            )
+            st.rerun()
    
     #11주차 내용
     follow_up_question = st.chat_input("궁금한 점을 입력하세요...")
@@ -365,6 +384,7 @@ else:
                     st.session_state.start_time = datetime.now()
                     st.session_state.learning_feedback = None
                     st.session_state.feedback_given = False
+                    st.session_state.is_correct = None
                     st.session_state.messages = []
                     log_user_action(
                         action="prev_question",
@@ -390,6 +410,7 @@ else:
                 st.session_state.start_time = datetime.now()
                 st.session_state.learning_feedback = None
                 st.session_state.feedback_given = False
+                st.session_state.is_correct = None
                 st.session_state.messages = []
                 st.session_state.learning_history = []
                 log_user_action(
@@ -411,6 +432,7 @@ else:
                     st.session_state.start_time = datetime.now()
                     st.session_state.learning_feedback = None
                     st.session_state.feedback_given = False
+                    st.session_state.is_correct = None
                     st.session_state.messages = []
                     log_user_action(
                         action="prev_question",
@@ -427,6 +449,7 @@ else:
                 st.session_state.start_time = datetime.now()
                 st.session_state.learning_feedback = None
                 st.session_state.feedback_given = False
+                st.session_state.is_correct = None
                 st.session_state.messages = []
                 log_user_action(
                     action="start_question",
