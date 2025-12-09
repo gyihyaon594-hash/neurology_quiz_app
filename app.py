@@ -1,6 +1,6 @@
 import streamlit as st
 from database_utils import register_user
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -10,8 +10,10 @@ st.set_page_config(
     page_icon="🧠"
 )
 
+# 한국 시간대
+KST = timezone(timedelta(hours=9))
+
 # Google Sheets 연결
-@st.cache_resource
 def get_progress_sheet():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -39,7 +41,13 @@ def load_progress(user_id):
         row = sheet.row_values(cell.row)
         qid = int(row[1])
         last_access = datetime.strptime(row[2], "%Y-%m-%d %H:%M")
-        if (datetime.now() - last_access).total_seconds() < 600:
+        
+        # 현재 시간 (UTC 기준으로 통일)
+        now = datetime.utcnow()
+        
+        # 10분(600초) 이내인지 확인
+        diff = (now - last_access).total_seconds()
+        if diff < 600:
             return qid
         return None
     except:
@@ -60,7 +68,7 @@ if 'user_id' not in st.session_state:
 
 # 페이지 제목
 st.title("신경과 5년차 ver1")
-st.markdown("신경과 퀴즈에 오신 것을 환영합니다! '학습 시작' 버튼을 클릭하면 신경과 문제가 제시됩니다. 각 질문에 가장 적합한 답을 골라 선택하세요. 본 신경학 퀴즈가 당신의 트레이닝에 도움이 되기를 바랍니다!")
+st.markdown("신경과 퀴즈에 오신 것을 환영합니다! '학습 시작' 버튼을 클릭하면 신경과 문제가 제시됩니다.")
 
 with st.form("register"):
     st.write("학습자 등록")
@@ -70,16 +78,19 @@ with st.form("register"):
     if submitted:
         if user in ALLOWED_USERS and ALLOWED_USERS[user] == phone:
             register_user(user_id=user, phone=phone)
-            st.success("등록 성공!")
             st.session_state.user_id = user
             
             # 기존 진행 상태 불러오기
             saved_qid = load_progress(user)
             if saved_qid and saved_qid > 1:
                 st.session_state.qid = saved_qid
-                st.info(f"이전 진행 상태를 불러왔습니다. ({saved_qid}번 문제부터 계속)")
+                st.session_state.submitted = False
+                st.session_state.selected = None
+                st.success(f"등록 성공! {saved_qid}번 문제부터 계속합니다.")
+            else:
+                st.success("등록 성공!")
         else:
-            st.error("접근 권한이 없습니다. 이름과 휴대폰 번호를 확인해주세요.")
+            st.error("접근 권한이 없습니다.")
 
 if st.session_state.user_id:
     st.page_link("pages/1_Quiz.py", label="🚀 학습 시작", use_container_width=True)
