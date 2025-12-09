@@ -253,20 +253,22 @@ feedback_with_history = RunnableWithMessageHistory(
 
 if "qid" not in st.session_state:
     st.session_state.qid = 1
-    st.session_state.submitted = False
-    st.session_state.selected = None
-    st.session_state.start_time = datetime.now()
-    st.session_state.learning_feedback = None
-    st.session_state.feedback_given = False
-    # 11주차 추가
-    st.session_state.learning_history = []
-    st.session_state.messages = []
 
-    log_user_action(
-        action="start_question",
-        user_id=st.session_state.user_id,
-        question_id=st.session_state.qid
-    )
+# 다른 세션 변수들은 항상 초기화 확인
+if "submitted" not in st.session_state:
+    st.session_state.submitted = False
+if "selected" not in st.session_state:
+    st.session_state.selected = None
+if "start_time" not in st.session_state:
+    st.session_state.start_time = datetime.now()
+if "learning_feedback" not in st.session_state:
+    st.session_state.learning_feedback = None
+if "feedback_given" not in st.session_state:
+    st.session_state.feedback_given = False
+if "learning_history" not in st.session_state:
+    st.session_state.learning_history = []
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 # 진행 상태 저장 (추가)
 save_progress(st.session_state.user_id, st.session_state.qid)
