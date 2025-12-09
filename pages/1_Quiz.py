@@ -3,6 +3,8 @@ import pandas as pd
 import time
 from datetime import datetime
 from database_utils import log_user_action
+import gspread
+from google.oauth2.service_account import Credentials
 
 #11주차
 from langchain_openai import ChatOpenAI
@@ -27,6 +29,35 @@ def require_login():
 
 require_login()      
 
+# Google Sheets 연결 (진행 상태 저장용)
+@st.cache_resource
+def get_progress_sheet():
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    credentials = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=scopes
+    )
+    client = gspread.authorize(credentials)
+    sheet_url = st.secrets["google_sheets"]["spreadsheet_url"]
+    spreadsheet = client.open_by_url(sheet_url)
+    try:
+        return spreadsheet.worksheet("progress")
+    except:
+        return None
+
+def save_progress(user_id, qid):
+    sheet = get_progress_sheet()
+    if sheet is None:
+        return
+    try:
+        cell = sheet.find(user_id)
+        sheet.update_cell(cell.row, 2, qid)
+        sheet.update_cell(cell.row, 3, datetime.now().strftime("%Y-%m-%d %H:%M"))
+    except:
+        sheet.append_row([user_id, qid, datetime.now().strftime("%Y-%m-%d %H:%M")])
 
 def render_feedback(selected: str, qrow: pd.Series):
     if st.session_state.feedback_given is True:
@@ -321,16 +352,15 @@ else:
             st.stop()
         else:
             st.session_state.qid += 1
+            save_progress(st.session_state.user_id, st.session_state.qid)  # 진행 상태 저장 추가
             st.session_state.submitted = False
             st.session_state.selected = None
             st.session_state.start_time = datetime.now()
             st.session_state.learning_feedback = None
             st.session_state.feedback_given = False
 
-
             #11주차
             st.session_state.messages = []
-
 
             log_user_action(
             action="start_question",
