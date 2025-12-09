@@ -356,7 +356,7 @@ else:
                 st.success("모든 문제를 완료했습니다. 수고하셨어요! 🎉")
                 st.switch_page("pages/2_대쉬보드.py")
         with col2:
-            if st.button("🔄 처음부터 다시"):
+            if st.button("🔄 다시풀기"):
                 st.session_state.qid = 1
                 save_progress(st.session_state.user_id, st.session_state.qid)
                 st.session_state.submitted = False
