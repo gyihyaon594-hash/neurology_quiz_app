@@ -299,7 +299,7 @@ if 'Image' in row.index and pd.notna(row.get('Image')) and str(row['Image']).str
 # 동영상 표시 (추가할 코드)
 if 'Video' in row.index and pd.notna(row.get('Video')) and str(row['Video']).strip():
     video_url = str(row['Video']).strip()
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1, 4, 1])  # 비율 변경
     with col2:
         st.video(video_url)
         
