@@ -30,7 +30,6 @@ def require_login():
 require_login()      
 
 # Google Sheets 연결 (진행 상태 저장용)
-@st.cache_resource
 def get_progress_sheet():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
