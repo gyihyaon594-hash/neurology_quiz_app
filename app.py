@@ -3,7 +3,7 @@ from database_utils import register_user
 
 # 페이지 설정
 st.set_page_config(
-    page_title="신경과 5년차 ver1",
+    page_title="신경과 5년차",
     page_icon="🤖"
 )
 
@@ -21,7 +21,7 @@ if 'user_id' not in st.session_state:
     st.session_state.user_id = ''
 
 # 페이지 제목, 연구 내용
-st.title("신경과 5년차")
+st.title("신경과 5년차 ver1")
 st.markdown("신경과 퀴즈에 오신 것을 환영합니다! '학습 시작' 버튼을 클릭하면 신경과 문제가 제시됩니다. 각 질문에 가장 적합한 답을 골라 선택하세요. 본 신경학 퀴즈가 당신의 트레이닝에 도움이 되기를 바랍니다!")
 
 with st.form("register"):
@@ -42,6 +42,7 @@ if st.session_state.user_id:
 else:
     if st.button("학습 시작"):
         st.warning("먼저 등록해주세요.")
+
 
 
 
