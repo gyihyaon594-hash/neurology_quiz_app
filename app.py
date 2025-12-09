@@ -3,7 +3,7 @@ from database_utils import register_user
 
 # 페이지 설정
 st.set_page_config(
-    page_title="신경과 5년차",
+    page_title="신경과 5년차 ver1",
     page_icon="🤖"
 )
 
@@ -42,6 +42,7 @@ if st.session_state.user_id:
 else:
     if st.button("학습 시작"):
         st.warning("먼저 등록해주세요.")
+
 
 
 
