@@ -60,6 +60,7 @@ ALLOWED_USERS = {
     "송배섭": "1525",
     "손선우": "3461",
     "김동규": "9440",
+    "
 }
 
 # 세션 상태 초기화
@@ -97,6 +98,7 @@ if st.session_state.user_id:
 else:
     if st.button("학습 시작"):
         st.warning("먼저 등록해주세요.")
+
 
 
 
