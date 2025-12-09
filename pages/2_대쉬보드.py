@@ -44,6 +44,10 @@ qmeta = load_questions(QUESTIONS_XLSX)
 cur = get_user_logs(user_id, sort_asc=True)
 df = to_df(cur)
 
+# 데이터 없으면 종료
+if df.empty or "question_id" not in df.columns:
+    st.info("아직 학습 기록이 없습니다. 먼저 Quiz를 풀어보세요!")
+    st.stop()
 
 # 타입 정리
 if "timestamp" in df.columns:
