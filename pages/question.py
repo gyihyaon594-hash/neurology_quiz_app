@@ -22,7 +22,7 @@ def require_login():
     if 'user_id' not in st.session_state or not st.session_state.user_id:
         st.warning("등록이 필요합니다")
         time.sleep(3)
-        st.switch_page("./home.py")
+        st.switch_page("app.py")
 
 
 require_login()      
