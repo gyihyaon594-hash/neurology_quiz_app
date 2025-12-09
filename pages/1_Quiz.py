@@ -294,6 +294,12 @@ if 'Image' in row.index and pd.notna(row.get('Image')) and str(row['Image']).str
     except:
         st.warning(f"이미지를 불러올 수 없습니다: {row['Image']}")
 
+# 동영상 표시 (추가할 코드)
+if 'Video' in row.index and pd.notna(row.get('Video')) and str(row['Video']).strip():
+    video_url = str(row['Video']).strip()
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.video(video_url)
         
 # 보기 구성==========================================
 choices = [c.strip() for c in str(row["Choices"]).split(",")]
