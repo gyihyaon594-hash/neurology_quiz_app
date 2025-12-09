@@ -262,12 +262,14 @@ if "qid" not in st.session_state:
     st.session_state.learning_history = []
     st.session_state.messages = []
 
-
     log_user_action(
         action="start_question",
         user_id=st.session_state.user_id,
         question_id=st.session_state.qid
     )
+
+# 현재 진행 상태 저장 (이 줄 추가)
+save_progress(st.session_state.user_id, st.session_state.qid)
 
 DF_PATH = "questions.xlsx"
 df = load_data(DF_PATH)
