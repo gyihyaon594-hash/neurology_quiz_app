@@ -344,9 +344,7 @@ else:
         paint_history()
         follow_up(follow_up_question)
 
-    if st.button("다음 문제 ▶"):
-        # 모든 문제 완료 시
-        if st.session_state.qid == len(df):
+    if st.session_state.qid == len(df):
         if st.button("✅ 완료"):
             log_user_action(
                 action="end",
@@ -365,7 +363,6 @@ else:
             st.session_state.learning_feedback = None
             st.session_state.feedback_given = False
             st.session_state.messages = []
-
             log_user_action(
                 action="start_question",
                 user_id=st.session_state.user_id,
