@@ -50,6 +50,7 @@ def get_progress_sheet():
 def save_progress(user_id, qid):
     sheet = get_progress_sheet()
     if sheet is None:
+        st.error("progress 시트 연결 실패")
         return
     try:
         cell = sheet.find(user_id)
