@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import os
 from datetime import datetime
 from database_utils import log_user_action
 import gspread
@@ -15,7 +16,7 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 st.set_page_config(page_title="신경학 Quiz", page_icon="🤖")
 
 @st.cache_data
-def load_data(path: str) -> pd.DataFrame:
+def load_data(path: str, _file_mtime: float) -> pd.DataFrame:
     df = pd.read_excel(path)
     return df
 
@@ -274,7 +275,8 @@ if "messages" not in st.session_state:
 save_progress(st.session_state.user_id, st.session_state.qid)
 
 DF_PATH = "questions.xlsx"
-df = load_data(DF_PATH)
+file_mtime = os.path.getmtime(DF_PATH)  # 파일 수정 시간 가져오기
+df = load_data(DF_PATH, file_mtime)
 
 # 파일 상단에 경로 설정================================
 IMAGE_FOLDER = "image/"
