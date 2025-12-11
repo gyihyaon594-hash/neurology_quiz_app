@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
 
-st.set_page_config(page_title="신경학 Quiz", page_icon="🤖")
+st.set_page_config(page_title="신경학 Quiz", page_icon="🧠")
 
 # 분과 목록 정의
 CATEGORIES = {
@@ -72,20 +72,33 @@ def get_progress_sheet():
     except:
         return None
 
-def load_questions(category="All"):
-    """Google Sheets에서 문제 로드"""
-    sheet = get_questions_sheet()
-    data = sheet.get_all_records()
-    
-    if not data:
+# ⭐ 캐싱된 전체 문제 로드 (한 번만 호출)
+@st.cache_data(ttl=300)  # 5분간 캐싱
+def load_all_questions():
+    """Google Sheets에서 모든 문제를 한 번에 로드"""
+    try:
+        sheet = get_questions_sheet()
+        data = sheet.get_all_records()
+        if not data:
+            return pd.DataFrame()
+        return pd.DataFrame(data)
+    except:
         return pd.DataFrame()
-    
-    df = pd.DataFrame(data)
-    
-    if category != "All":
-        df = df[df['category'] == category]
-    
-    return df.reset_index(drop=True)
+
+def get_questions_by_category(df, category):
+    """카테고리별 문제 필터링 (API 호출 없음)"""
+    if df.empty:
+        return pd.DataFrame()
+    if category == "All":
+        return df.reset_index(drop=True)
+    return df[df['category'] == category].reset_index(drop=True)
+
+def get_category_counts(df):
+    """카테고리별 문제 수 계산 (API 호출 없음)"""
+    if df.empty:
+        return {cat: 0 for cat in CATEGORIES.keys()}
+    counts = df['category'].value_counts().to_dict()
+    return {cat: counts.get(cat, 0) for cat in CATEGORIES.keys()}
 
 def save_progress(user_id, qid, category):
     sheet = get_progress_sheet()
@@ -196,7 +209,6 @@ def render_feedback(selected: str, qrow):
         corrective_feedback = "오답입니다. 다시 확인해볼까요?"
         st.session_state.learning_history.append("wrong")
     
-    # 선택한 보기에 대한 피드백
     try:
         choice_idx = choices.index(selected)
         feedback_key = f"feedback_{choice_idx + 1}"
@@ -220,7 +232,6 @@ def render_feedback(selected: str, qrow):
     if learning_feedback:
         save_message(learning_feedback, "ai")
     
-    # 공감 피드백
     learning_context = f"Question: {qrow['question']}, Correct Answer: {answer}, Student Answer: {selected}"
     
     try:
@@ -284,19 +295,23 @@ if "is_correct" not in st.session_state:
 # ============ UI ============
 st.title("🧠 신경학 Quiz")
 
+# ⭐ 전체 데이터 한 번만 로드 (캐싱됨)
+all_questions_df = load_all_questions()
+
 # 분과 선택 (카테고리 미선택 시)
 if st.session_state.selected_category is None:
     st.subheader("📚 학습 분과를 선택하세요")
+    
+    # ⭐ 카테고리별 개수 한 번에 계산
+    category_counts = get_category_counts(all_questions_df)
     
     col1, col2 = st.columns(2)
     
     for idx, (cat_en, cat_kr) in enumerate(CATEGORIES.items()):
         with col1 if idx % 2 == 0 else col2:
-            # 해당 카테고리의 문제 수 확인
-            cat_df = load_questions(cat_en)
-            count = len(cat_df)
+            count = category_counts.get(cat_en, 0)
             
-            if st.button(f"📖 {cat_kr} ({cat_en})\n문제 {count}개", 
+            if st.button(f"📖 {cat_kr} ({cat_en}) 문제 {count}개", 
                         key=f"cat_{cat_en}",
                         use_container_width=True,
                         disabled=(count == 0)):
@@ -308,13 +323,18 @@ if st.session_state.selected_category is None:
                 st.session_state.messages = []
                 st.session_state.learning_history = []
                 st.rerun()
+    
+    # 새로고침 버튼
+    st.divider()
+    if st.button("🔄 문제 목록 새로고침"):
+        st.cache_data.clear()
+        st.rerun()
 
 # 퀴즈 진행
 else:
     category = st.session_state.selected_category
-    df = load_questions(category)
+    df = get_questions_by_category(all_questions_df, category)
     
-    # 사이드바에 분과 변경 버튼
     with st.sidebar:
         st.markdown(f"**현재 분과:** {CATEGORIES.get(category, category)}")
         if st.button("🔄 분과 변경"):
@@ -329,10 +349,8 @@ else:
             st.session_state.selected_category = None
             st.rerun()
     else:
-        # 진행 상태 저장
         save_progress(st.session_state.user_id, st.session_state.qid, category)
         
-        # 문제 표시
         if st.session_state.qid > len(df):
             st.session_state.qid = 1
         
@@ -342,21 +360,18 @@ else:
         st.markdown("**가장 적절한 답을 고르시오.**")
         st.markdown(f"### {st.session_state.qid}. {row['question']}")
         
-        # 이미지 표시
         image_url = row.get('image_url', '')
         if image_url and str(image_url).strip() and str(image_url).startswith('http'):
             col1, col2, col3 = st.columns([1, 4, 1])
             with col2:
                 st.image(image_url, use_container_width=True)
         
-        # 동영상 표시
         video_url = row.get('video_url', '')
         if video_url and str(video_url).strip() and str(video_url).startswith('http'):
             col1, col2, col3 = st.columns([1, 4, 1])
             with col2:
                 st.video(video_url)
         
-        # 보기 구성
         choices = [c.strip() for c in str(row['choices']).split(',')]
         
         if st.session_state.submitted and st.session_state.selected in choices:
@@ -374,7 +389,6 @@ else:
             on_change=on_choice_change
         )
         
-        # 제출 버튼
         if not st.session_state.submitted:
             if st.button("정답 제출", type="primary"):
                 if selected is None:
@@ -396,7 +410,6 @@ else:
         else:
             render_feedback(st.session_state.selected, row)
             
-            # 오답 시 다시 풀기
             if st.session_state.is_correct == False:
                 if st.button("🔄 이 문제 다시 풀기"):
                     st.session_state.submitted = False
@@ -407,13 +420,11 @@ else:
                     st.session_state.messages = []
                     st.rerun()
             
-            # 추가 질문
             follow_up_question = st.chat_input("궁금한 점을 입력하세요...")
             if follow_up_question:
                 paint_history()
                 follow_up(follow_up_question)
             
-            # 네비게이션 버튼
             if st.session_state.qid == len(df):
                 col1, col2, col3 = st.columns([1, 1, 1])
                 with col1:
