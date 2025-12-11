@@ -29,7 +29,6 @@ def require_login():
 
 require_login()
 
-# Google Sheets 연결
 def get_sheets_client():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -57,7 +56,6 @@ def get_neurotest_sheet():
 
 @st.cache_data(ttl=300)
 def load_all_materials():
-    """Google Sheets에서 모든 자료 로드"""
     try:
         sheet = get_neurotest_sheet()
         data = sheet.get_all_records()
@@ -68,7 +66,6 @@ def load_all_materials():
         return pd.DataFrame()
 
 def get_materials_by_category(df, category):
-    """카테고리별 자료 필터링"""
     if df.empty:
         return pd.DataFrame()
     filtered = df[df['category'] == category]
@@ -77,7 +74,6 @@ def get_materials_by_category(df, category):
     return filtered.reset_index(drop=True)
 
 def get_category_counts(df):
-    """카테고리별 자료 수 계산"""
     if df.empty:
         return {cat: 0 for cat in NEURO_TESTS.keys()}
     counts = df['category'].value_counts().to_dict()
@@ -92,41 +88,57 @@ if "neurotest_item_idx" not in st.session_state:
 # ============ UI ============
 st.title("🧠 임상신경생리검사 및 SNSB")
 
-# 전체 데이터 로드
 all_materials_df = load_all_materials()
 
-# 카테고리 미선택 시 - 목록 표시
+# 카테고리 미선택 시
 if st.session_state.selected_neurotest is None:
     st.subheader("📋 검사 종류를 선택하세요")
     
     category_counts = get_category_counts(all_materials_df)
     
-    col1, col2 = st.columns(2)
+    # ⭐ 수정된 부분: 2개씩 묶어서 순서대로 표시
+    items = list(NEURO_TESTS.items())
     
-    for idx, (cat_en, cat_kr) in enumerate(NEURO_TESTS.items()):
-        with col1 if idx % 2 == 0 else col2:
+    for i in range(0, len(items), 2):
+        col1, col2 = st.columns(2)
+        
+        # 왼쪽 버튼
+        cat_en, cat_kr = items[i]
+        with col1:
             count = category_counts.get(cat_en, 0)
-            
             if st.button(
-                f"📖 {cat_kr}\n자료 {count}개", 
+                f"📖 {cat_kr} 자료 {count}개", 
                 key=f"neuro_{cat_en}",
                 use_container_width=True
             ):
                 st.session_state.selected_neurotest = cat_en
                 st.session_state.neurotest_item_idx = 0
                 st.rerun()
+        
+        # 오른쪽 버튼
+        if i + 1 < len(items):
+            cat_en, cat_kr = items[i + 1]
+            with col2:
+                count = category_counts.get(cat_en, 0)
+                if st.button(
+                    f"📖 {cat_kr} 자료 {count}개", 
+                    key=f"neuro_{cat_en}",
+                    use_container_width=True
+                ):
+                    st.session_state.selected_neurotest = cat_en
+                    st.session_state.neurotest_item_idx = 0
+                    st.rerun()
     
     st.divider()
     if st.button("🔄 자료 새로고침"):
         st.cache_data.clear()
         st.rerun()
 
-# 카테고리 선택됨 - 자료 표시
+# 카테고리 선택됨
 else:
     category = st.session_state.selected_neurotest
     df = get_materials_by_category(all_materials_df, category)
     
-    # 사이드바
     with st.sidebar:
         st.markdown(f"**현재 검사:** {NEURO_TESTS.get(category, category)}")
         if st.button("🔙 검사 목록으로"):
@@ -139,7 +151,6 @@ else:
     if df.empty:
         st.info("아직 등록된 자료가 없습니다.")
         
-        # 빈 상태에서 기본 안내 표시
         st.markdown("---")
         st.markdown(f"### {NEURO_TESTS.get(category, category)} 학습 자료")
         st.markdown("""
@@ -149,10 +160,9 @@ else:
         - 이상 소견 해석
         - 임상 적용
         
-        *자료는 '문제 관리' 페이지에서 등록할 수 있습니다.*
+        *자료는 '검사자료 관리' 페이지에서 등록할 수 있습니다.*
         """)
     else:
-        # 자료 목록 또는 상세 보기
         total_items = len(df)
         current_idx = st.session_state.neurotest_item_idx
         
@@ -162,32 +172,25 @@ else:
         
         item = df.iloc[current_idx]
         
-        # 진행 상황 표시
         st.caption(f"자료 {current_idx + 1} / {total_items}")
-        
-        # 제목
         st.markdown(f"## {item.get('title', '제목 없음')}")
         
-        # 이미지
         image_url = item.get('image_url', '')
         if image_url and str(image_url).strip() and str(image_url).startswith('http'):
             col1, col2, col3 = st.columns([1, 4, 1])
             with col2:
                 st.image(image_url, use_container_width=True)
         
-        # 동영상
         video_url = item.get('video_url', '')
         if video_url and str(video_url).strip() and str(video_url).startswith('http'):
             col1, col2, col3 = st.columns([1, 4, 1])
             with col2:
                 st.video(video_url)
         
-        # 내용
         content = item.get('content', '')
         if content:
             st.markdown(content)
         
-        # 네비게이션
         st.divider()
         
         if total_items > 1:
@@ -198,8 +201,7 @@ else:
                         st.session_state.neurotest_item_idx -= 1
                         st.rerun()
             with col2:
-                # 자료 선택 드롭다운
-                titles = [f"{i+1}. {df.iloc[i].get('title', '제목 없음')[:30]}" for i in range(total_items)]
+                titles = [f"{i+1}. {df.iloc[i].get('title', '제목 없음')[:20]}" for i in range(total_items)]
                 selected_title = st.selectbox(
                     "자료 선택",
                     options=titles,
