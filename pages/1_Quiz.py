@@ -290,6 +290,18 @@ if "is_correct" not in st.session_state:
 # ============ UI ============
 st.title("🧠 신경학 Quiz")
 
+st.markdown("""
+<style>
+    div[role="radiogroup"] label {
+        font-size: 18px !important;
+        padding: 8px 0 !important;
+    }
+    div[role="radiogroup"] label > div:first-child {
+        transform: scale(1.2);
+    }
+</style>
+""", unsafe_allow_html=True)
+
 all_questions_df = load_all_questions()
 
 # 분과 선택 (카테고리 미선택 시)
@@ -376,7 +388,7 @@ else:
         
         st.caption(f"📁 {CATEGORIES.get(category, category)} | 문제 {st.session_state.qid}/{len(df)}")
         st.markdown("**가장 적절한 답을 고르시오.**")
-        st.markdown(f"### {st.session_state.qid}. {row['question']}")
+        st.markdown(f"**{st.session_state.qid}. {row['question']}**")
         
         image_url = row.get('image_url', '')
         if image_url and str(image_url).strip() and str(image_url).startswith('http'):
