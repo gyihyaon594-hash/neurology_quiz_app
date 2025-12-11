@@ -3,9 +3,8 @@ import time
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-import io
+import requests
+import base64
 
 st.set_page_config(page_title="컨퍼런스 관리", page_icon="✍️")
 
@@ -18,8 +17,8 @@ def require_login():
 
 require_login()
 
-# Google API 연결
-def get_google_credentials():
+# Google Sheets 연결
+def get_sheets_client():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
@@ -28,51 +27,43 @@ def get_google_credentials():
         st.secrets["gcp_service_account"],
         scopes=scopes
     )
-    return credentials
-
-def get_sheets_client():
-    credentials = get_google_credentials()
     return gspread.authorize(credentials)
 
-# ⭐ Google Drive에 이미지 업로드
-def upload_image_to_drive(image_file):
-    """Google Drive에 이미지 업로드하고 URL 반환"""
+# ⭐ imgBB에 이미지 업로드
+def upload_image_to_imgbb(image_file):
+    """imgBB에 이미지 업로드하고 URL 반환"""
     try:
-        credentials = get_google_credentials()
-        service = build('drive', 'v3', credentials=credentials)
+        api_key = st.secrets.get("imgbb", {}).get("api_key", "")
         
-        # 파일 메타데이터
-        file_metadata = {
-            'name': f"conference_{datetime.now().strftime('%Y%m%d%H%M%S')}_{image_file.name}",
-            'mimeType': image_file.type
-        }
+        if not api_key:
+            st.error("imgBB API 키가 설정되지 않았습니다.")
+            return None
         
-        # 파일 업로드
-        media = MediaIoBaseUpload(
-            io.BytesIO(image_file.read()),
-            mimetype=image_file.type,
-            resumable=True
+        # 이미지를 base64로 인코딩
+        image_data = base64.b64encode(image_file.read()).decode('utf-8')
+        
+        # imgBB API 호출
+        response = requests.post(
+            "https://api.imgbb.com/1/upload",
+            data={
+                "key": api_key,
+                "image": image_data,
+                "name": image_file.name
+            },
+            timeout=30
         )
         
-        file = service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id'
-        ).execute()
-        
-        file_id = file.get('id')
-        
-        # 파일을 공개로 설정
-        service.permissions().create(
-            fileId=file_id,
-            body={'type': 'anyone', 'role': 'reader'}
-        ).execute()
-        
-        # 직접 접근 가능한 URL 반환
-        image_url = f"https://drive.google.com/uc?id={file_id}"
-        
-        return image_url
-    
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('success'):
+                return result['data']['url']
+            else:
+                st.error(f"업로드 실패: {result.get('error', {}).get('message', '알 수 없는 오류')}")
+                return None
+        else:
+            st.error(f"HTTP 오류: {response.status_code}")
+            return None
+            
     except Exception as e:
         st.error(f"이미지 업로드 오류: {e}")
         return None
@@ -84,16 +75,16 @@ def get_conference_sheet():
     try:
         return spreadsheet.worksheet("conference")
     except:
-        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=6)
-        worksheet.append_row(["id", "author", "content_above", "content_below", "created_at", "image_url"])
+        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=7)
+        worksheet.append_row(["id", "author", "content_above", "content_below", "created_at", "image_url", "video_url"])
         return worksheet
 
-def add_comment(author, content_above, content_below, image_url=""):
+def add_comment(author, content_above, content_below, image_url="", video_url=""):
     """글 추가"""
     sheet = get_conference_sheet()
     comment_id = datetime.now().strftime('%Y%m%d%H%M%S')
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    sheet.append_row([comment_id, author, content_above, content_below, created_at, image_url])
+    sheet.append_row([comment_id, author, content_above, content_below, created_at, image_url, video_url])
 
 def get_all_posts():
     """모든 글 가져오기"""
@@ -111,7 +102,7 @@ def delete_post(post_id):
             return True
     return False
 
-def update_post(post_id, content_above, content_below, image_url=""):
+def update_post(post_id, content_above, content_below, image_url="", video_url=""):
     """글 수정"""
     sheet = get_conference_sheet()
     data = sheet.get_all_values()
@@ -120,6 +111,7 @@ def update_post(post_id, content_above, content_below, image_url=""):
             sheet.update_cell(idx + 1, 3, content_above)
             sheet.update_cell(idx + 1, 4, content_below)
             sheet.update_cell(idx + 1, 6, image_url)
+            sheet.update_cell(idx + 1, 7, video_url)
             return True
     return False
 
@@ -172,11 +164,12 @@ else:
         )
         
         # ⭐ 이미지 업로드 섹션
+        st.markdown("---")
         st.markdown("### 🖼️ 이미지 첨부")
         
         image_option = st.radio(
             "이미지 추가 방법",
-            ["없음", "파일 업로드 (Google Drive 저장)", "URL 직접 입력"],
+            ["없음", "파일 업로드 (imgBB 저장)", "URL 직접 입력"],
             horizontal=True,
             key="new_img_option"
         )
@@ -184,7 +177,7 @@ else:
         image_url = ""
         uploaded_image = None
         
-        if image_option == "파일 업로드 (Google Drive 저장)":
+        if image_option == "파일 업로드 (imgBB 저장)":
             uploaded_image = st.file_uploader(
                 "이미지 파일 선택", 
                 type=['png', 'jpg', 'jpeg', 'gif'],
@@ -192,7 +185,7 @@ else:
             )
             if uploaded_image:
                 st.image(uploaded_image, caption="미리보기", use_container_width=True)
-                st.info("💡 '등록' 버튼을 누르면 Google Drive에 이미지가 업로드됩니다.")
+                st.info("💡 '등록' 버튼을 누르면 imgBB에 이미지가 업로드됩니다.")
                 
         elif image_option == "URL 직접 입력":
             image_url = st.text_input(
@@ -206,6 +199,16 @@ else:
                 except:
                     st.warning("이미지를 불러올 수 없습니다. URL을 확인해주세요.")
         
+        # ⭐ 동영상 URL 입력
+        st.markdown("---")
+        st.markdown("### 🎬 동영상 첨부")
+        video_url = st.text_input("YouTube URL (선택)", placeholder="https://youtube.com/watch?v=...", key="new_video")
+        if video_url:
+            try:
+                st.video(video_url)
+            except:
+                st.warning("동영상을 불러올 수 없습니다.")
+        
         content_below = st.text_area(
             "이미지 아래 내용 (선택)",
             placeholder="이미지 아래에 표시할 내용을 입력하세요...",
@@ -213,21 +216,23 @@ else:
             key="new_content_below"
         )
         
+        st.markdown("---")
+        
         if st.button("등록", type="primary"):
             if content_above.strip() or content_below.strip():
                 final_image_url = image_url
                 
                 # 파일 업로드 처리
-                if image_option == "파일 업로드 (Google Drive 저장)" and uploaded_image:
-                    with st.spinner("이미지를 Google Drive에 업로드 중..."):
-                        uploaded_url = upload_image_to_drive(uploaded_image)
+                if image_option == "파일 업로드 (imgBB 저장)" and uploaded_image:
+                    with st.spinner("이미지를 imgBB에 업로드 중..."):
+                        uploaded_url = upload_image_to_imgbb(uploaded_image)
                         if uploaded_url:
                             final_image_url = uploaded_url
                             st.success("이미지 업로드 완료!")
                         else:
                             st.warning("이미지 업로드 실패. 글은 이미지 없이 등록됩니다.")
                 
-                add_comment("윤지환", content_above, content_below, final_image_url)
+                add_comment("윤지환", content_above, content_below, final_image_url, video_url)
                 st.success("등록되었습니다!")
                 time.sleep(1)
                 st.switch_page("pages/3_Morning Conference.py")
@@ -262,19 +267,25 @@ else:
                         )
                         
                         # ⭐ 이미지 수정 섹션
+                        st.markdown("---")
                         st.markdown("### 🖼️ 이미지 수정")
                         
                         current_img = str(post.get('image_url') or post.get('image_name', '') or '')
+                        
+                        # 현재 이미지 표시 (항상 보이도록)
                         if current_img:
-                            st.markdown("**현재 이미지:**")
+                            st.markdown("**현재 등록된 이미지:**")
                             try:
                                 st.image(current_img, use_container_width=True)
                             except:
                                 st.warning("현재 이미지를 불러올 수 없습니다.")
+                                st.caption(f"URL: {current_img}")
+                        else:
+                            st.info("현재 등록된 이미지가 없습니다.")
                         
                         edit_img_option = st.radio(
                             "이미지 변경",
-                            ["유지", "새 파일 업로드", "URL 변경", "삭제"],
+                            ["유지", "파일 업로드 (imgBB 저장)", "URL 변경", "삭제"],
                             horizontal=True,
                             key=f"edit_img_opt_{post_id}"
                         )
@@ -282,14 +293,16 @@ else:
                         edit_image_url = current_img
                         new_image_file = None
                         
-                        if edit_img_option == "새 파일 업로드":
+                        if edit_img_option == "파일 업로드 (imgBB 저장)":
                             new_image_file = st.file_uploader(
                                 "새 이미지 선택",
                                 type=['png', 'jpg', 'jpeg', 'gif'],
                                 key=f"edit_img_file_{post_id}"
                             )
                             if new_image_file:
+                                st.markdown("**새로 업로드할 이미지:**")
                                 st.image(new_image_file, caption="새 이미지 미리보기", use_container_width=True)
+                                st.info("💡 '저장' 버튼을 누르면 imgBB에 이미지가 업로드됩니다.")
                         
                         elif edit_img_option == "URL 변경":
                             edit_image_url = st.text_input(
@@ -297,15 +310,41 @@ else:
                                 value=current_img,
                                 key=f"edit_url_{post_id}"
                             )
-                            if edit_image_url:
+                            if edit_image_url and edit_image_url != current_img:
+                                st.markdown("**새 URL 이미지 미리보기:**")
                                 try:
                                     st.image(edit_image_url, caption="미리보기", use_container_width=True)
                                 except:
-                                    pass
+                                    st.warning("이미지를 불러올 수 없습니다.")
                         
                         elif edit_img_option == "삭제":
                             edit_image_url = ""
-                            st.info("저장 시 이미지가 삭제됩니다.")
+                            st.warning("⚠️ 저장 시 이미지가 삭제됩니다.")
+                        
+                        # ⭐ 동영상 수정 섹션
+                        st.markdown("---")
+                        st.markdown("### 🎬 동영상 수정")
+                        
+                        current_video = str(post.get('video_url', '') or '')
+                        
+                        # 현재 동영상 표시 (항상 보이도록)
+                        if current_video:
+                            st.markdown("**현재 등록된 동영상:**")
+                            try:
+                                st.video(current_video)
+                            except:
+                                st.warning("현재 동영상을 불러올 수 없습니다.")
+                                st.caption(f"URL: {current_video}")
+                        else:
+                            st.info("현재 등록된 동영상이 없습니다.")
+                        
+                        edit_video_url = st.text_input("YouTube URL", value=current_video, key=f"edit_video_{post_id}")
+                        if edit_video_url and edit_video_url != current_video:
+                            st.markdown("**새 동영상 미리보기:**")
+                            try:
+                                st.video(edit_video_url)
+                            except:
+                                st.warning("동영상을 불러올 수 없습니다.")
                         
                         edit_below = st.text_area(
                             "이미지 아래 내용",
@@ -314,15 +353,17 @@ else:
                             key=f"edit_below_{post_id}"
                         )
                         
+                        st.markdown("---")
+                        
                         col1, col2 = st.columns(2)
                         with col1:
                             if st.button("💾 저장", key=f"save_{post_id}", type="primary"):
                                 final_image_url = edit_image_url
                                 
                                 # 새 이미지 업로드 처리
-                                if edit_img_option == "새 파일 업로드" and new_image_file:
-                                    with st.spinner("이미지를 Google Drive에 업로드 중..."):
-                                        uploaded_url = upload_image_to_drive(new_image_file)
+                                if edit_img_option == "파일 업로드 (imgBB 저장)" and new_image_file:
+                                    with st.spinner("이미지를 imgBB에 업로드 중..."):
+                                        uploaded_url = upload_image_to_imgbb(new_image_file)
                                         if uploaded_url:
                                             final_image_url = uploaded_url
                                             st.success("이미지 업로드 완료!")
@@ -330,9 +371,10 @@ else:
                                             st.warning("이미지 업로드 실패. 기존 이미지 유지.")
                                             final_image_url = current_img
                                 
-                                update_post(post_id, edit_above, edit_below, final_image_url)
+                                update_post(post_id, edit_above, edit_below, final_image_url, edit_video_url)
                                 st.session_state.edit_post_id = None
                                 st.success("수정되었습니다!")
+                                st.cache_data.clear()
                                 time.sleep(1)
                                 st.rerun()
                         with col2:
@@ -343,10 +385,15 @@ else:
                     else:
                         col1, col2, col3 = st.columns([5, 1, 1])
                         with col1:
-                            # 이미지 아이콘 표시
-                            has_image = post.get('image_url') or post.get('image_name', '')
-                            image_icon = " 🖼️" if has_image else ""
-                            st.markdown(f"**{content[:50]}{'...' if len(content) > 50 else ''}**{image_icon}")
+                            # 이미지/동영상 아이콘 표시
+                            media_icons = []
+                            if post.get('image_url') or post.get('image_name', ''):
+                                media_icons.append("🖼️")
+                            if post.get('video_url'):
+                                media_icons.append("🎬")
+                            media_str = " ".join(media_icons)
+                            
+                            st.markdown(f"**{content[:50]}{'...' if len(content) > 50 else ''}** {media_str}")
                             st.caption(f"{post['author']} · {post['created_at']}")
                         with col2:
                             if st.button("✏️ 수정", key=f"edit_{post_id}"):
@@ -364,6 +411,7 @@ else:
                                     delete_post(post_id)
                                     st.session_state[f"confirm_delete_{post_id}"] = False
                                     st.success("삭제되었습니다.")
+                                    st.cache_data.clear()
                                     time.sleep(1)
                                     st.rerun()
                             with col2:
