@@ -76,19 +76,19 @@ if st.session_state.user_id:
     pages = {
         "학습": [
             st.Page("pages/1_Quiz.py", title="Quiz", icon="🧠"),
-            st.Page("pages/2_임신생검사 및 SNSB.py", title="임신생검사 및 SNSB", icon="🔬"),
-            st.Page("pages/3_Morning Conference.py", title="Morning Conference", icon="🏥"),
-            st.Page("pages/4_대쉬보드.py", title="대쉬보드", icon="📊"),
-            st.Page("pages/5_질문.py", title="질문", icon="❓"),
+            st.Page("pages/2_임신생검사 및 SNSB.py", title="임상신경생리검사 및 SNSB", icon="🔬"),
+            st.Page("pages/3_Morning_Conference.py", title="Morning Conference", icon="🏥"),
+            st.Page("pages/4_Dashboard.py", title="대쉬보드", icon="📊"),
+            st.Page("pages/5_Question.py", title="질문", icon="❓"),
         ]
     }
     
     # 관리자 페이지 (관리자만)
     if st.session_state.is_admin:
         pages["관리자"] = [
-            st.Page("pages/6_새글 작성.py", title="새글 작성", icon="✍️"),
-            st.Page("pages/7_문제 관리.py", title="문제 관리", icon="📝"),
-            st.Page("pages/8_검사자료 관리.py", title="검사자료 관리", icon="🔬"),
+            st.Page("pages/6_New_Post.py", title="컨퍼런스 관리", icon="✍️"),
+            st.Page("pages/7_Quiz_Admin.py", title="문제 관리", icon="📝"),
+            st.Page("pages/8_Test_Admin.py", title="검사자료 관리", icon="🔬"),
         ]
     
     # 사이드바에 사용자 정보 표시
