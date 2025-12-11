@@ -392,7 +392,6 @@ else:
         
 image_url = str(row.get('image_url', '') or '').strip()
 if image_url and image_url != 'nan' and image_url != '':
-    # http 체크 제거 (Google Drive 등 다양한 URL 지원)
     col1, col2, col3 = st.columns([1, 4, 1])
     with col2:
         try:
