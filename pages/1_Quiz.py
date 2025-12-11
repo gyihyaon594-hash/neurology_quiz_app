@@ -16,17 +16,16 @@ st.set_page_config(page_title="신경학 Quiz", page_icon="🤖")
 
 # 분과 목록 정의
 CATEGORIES = {
-    "All": "전체",
-    "Headache": "두통",
-    "Stroke": "뇌졸중",
-    "Sleep Disorders": "수면장애",
-    "Movement Disorders": "이상운동",
-    "Dementia": "치매",
-    "Dizziness": "어지럼증",
-    "Neuromuscular": "근골격계",
-    "CNS Infection": "중추신경계감염",
-    "Epilepsy": "뇌전증",
-    "Neurocritical Care": "신경계 중환자"
+    "Approach": "1. 신경계질환의 접근",
+    "Critical Care": "2. 의식장애와 중환자관리",
+    "Stroke": "3. 뇌혈관질환",
+    "Movement": "4. 이상운동",
+    "Neuromuscular": "5. 신경근육",
+    "Demyelinating": "6. 탈수초성",
+    "CNS Infection": "7. 뇌감염질환",
+    "Seizure": "8. 경련",
+    "Dementia": "9. 치매",
+    "Headache": "10. 두통"
 }
 
 def require_login():
