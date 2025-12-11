@@ -46,7 +46,7 @@ def get_sheets_client():
     credentials = get_google_credentials()
     return gspread.authorize(credentials)
 
-# ⭐ Google Drive에 이미지 업로드
+# Google Drive에 이미지 업로드
 def upload_image_to_drive(image_file):
     """Google Drive에 이미지 업로드하고 URL 반환"""
     try:
@@ -198,7 +198,7 @@ else:
         
         difficulty = st.selectbox("난이도", options=[1, 2, 3, 4, 5], index=2)
         
-        # ⭐ 이미지 업로드 섹션
+        # 이미지 업로드 섹션
         st.markdown("---")
         st.markdown("### 🖼️ 이미지 첨부")
         
@@ -230,7 +230,7 @@ else:
                 except:
                     st.warning("이미지를 불러올 수 없습니다.")
         
-        # ⭐ 동영상 URL 입력
+        # 동영상 URL 입력
         st.markdown("### 🎬 동영상 첨부")
         video_url = st.text_input("YouTube URL (선택)", placeholder="https://youtube.com/watch?v=...", key="new_video")
         if video_url:
@@ -319,19 +319,23 @@ else:
                             edit_fb2 = st.text_area("보기 2 피드백", value=q.get('feedback_2', ''), height=60, key=f"edit_fb2_{q_id}")
                             edit_fb4 = st.text_area("보기 4 피드백", value=q.get('feedback_4', ''), height=60, key=f"edit_fb4_{q_id}")
                         
-                        # ⭐ 이미지 수정
+                        # 이미지 수정
                         st.markdown("---")
                         st.markdown("### 🖼️ 이미지 수정")
                         
                         current_img = str(q.get('image_url', '') or '')
+                        
+                        # 현재 이미지 표시 (항상 보이도록)
                         if current_img:
-                            st.markdown("**현재 이미지:**")
+                            st.markdown("**현재 등록된 이미지:**")
                             try:
-                                st.image(current_img, width=300)
+                                st.image(current_img, width=400)
                             except:
                                 st.warning("현재 이미지를 불러올 수 없습니다.")
+                                st.caption(f"URL: {current_img}")
+                        else:
+                            st.info("현재 등록된 이미지가 없습니다.")
                         
-                        # ⭐ 수정: 텍스트 일관성 있게 변경
                         edit_img_option = st.radio(
                             "이미지 변경",
                             ["유지", "파일 업로드 (Google Drive 저장)", "URL 변경", "삭제"],
@@ -342,7 +346,6 @@ else:
                         edit_image_url = current_img
                         new_image_file = None
                         
-                        # ⭐ 수정: 조건문도 일치하게 변경
                         if edit_img_option == "파일 업로드 (Google Drive 저장)":
                             new_image_file = st.file_uploader(
                                 "새 이미지 선택",
@@ -350,26 +353,38 @@ else:
                                 key=f"edit_img_file_{q_id}"
                             )
                             if new_image_file:
-                                st.image(new_image_file, caption="새 이미지 미리보기", width=300)
+                                st.markdown("**새로 업로드할 이미지:**")
+                                st.image(new_image_file, caption="새 이미지 미리보기", width=400)
                                 st.info("💡 '저장' 버튼을 누르면 Google Drive에 이미지가 업로드됩니다.")
                         
                         elif edit_img_option == "URL 변경":
                             edit_image_url = st.text_input("이미지 URL", value=current_img, key=f"edit_img_url_{q_id}")
-                            if edit_image_url:
+                            if edit_image_url and edit_image_url != current_img:
+                                st.markdown("**새 URL 이미지 미리보기:**")
                                 try:
-                                    st.image(edit_image_url, caption="미리보기", width=300)
+                                    st.image(edit_image_url, caption="미리보기", width=400)
                                 except:
-                                    pass
+                                    st.warning("이미지를 불러올 수 없습니다.")
                         
                         elif edit_img_option == "삭제":
                             edit_image_url = ""
-                            st.info("저장 시 이미지가 삭제됩니다.")
+                            st.warning("⚠️ 저장 시 이미지가 삭제됩니다.")
                         
-                        # ⭐ 동영상 수정
+                        # 동영상 수정
+                        st.markdown("---")
                         st.markdown("### 🎬 동영상 수정")
                         current_video = str(q.get('video_url', '') or '')
+                        
+                        if current_video:
+                            st.markdown("**현재 등록된 동영상:**")
+                            try:
+                                st.video(current_video)
+                            except:
+                                st.warning("현재 동영상을 불러올 수 없습니다.")
+                        
                         edit_video_url = st.text_input("YouTube URL", value=current_video, key=f"edit_video_{q_id}")
-                        if edit_video_url:
+                        if edit_video_url and edit_video_url != current_video:
+                            st.markdown("**새 동영상 미리보기:**")
                             try:
                                 st.video(edit_video_url)
                             except:
@@ -382,7 +397,6 @@ else:
                             if st.button("💾 저장", key=f"save_{q_id}", type="primary"):
                                 final_image_url = edit_image_url
                                 
-                                # ⭐ 수정: 조건문도 일치하게 변경
                                 if edit_img_option == "파일 업로드 (Google Drive 저장)" and new_image_file:
                                     with st.spinner("이미지를 Google Drive에 업로드 중..."):
                                         uploaded_url = upload_image_to_drive(new_image_file)
@@ -417,6 +431,42 @@ else:
                             if st.button("❌ 취소", key=f"cancel_{q_id}"):
                                 st.session_state.edit_question_id = None
                                 st.rerun()
+                    
+                    # ⭐ 목록 표시 (수정 모드가 아닐 때)
+                    else:
+                        col1, col2, col3 = st.columns([5, 1, 1])
+                        with col1:
+                            cat_name = CATEGORIES.get(q['category'], q['category'])
+                            st.markdown(f"**[{cat_name}]** {q['question'][:50]}...")
+                            media_info = []
+                            if q.get('image_url'):
+                                media_info.append("🖼️")
+                            if q.get('video_url'):
+                                media_info.append("🎬")
+                            media_str = " ".join(media_info) if media_info else ""
+                            st.caption(f"정답: {q['answer']} | 난이도: {q.get('difficulty', '-')} {media_str}")
+                        with col2:
+                            if st.button("✏️", key=f"edit_{q_id}"):
+                                st.session_state.edit_question_id = q_id
+                                st.rerun()
+                        with col3:
+                            if st.button("🗑️", key=f"del_{q_id}"):
+                                st.session_state[f"confirm_del_{q_id}"] = True
+                        
+                        # 삭제 확인
+                        if st.session_state.get(f"confirm_del_{q_id}", False):
+                            st.warning("정말 삭제하시겠습니까?")
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                if st.button("✅ 예", key=f"yes_{q_id}"):
+                                    delete_question(q_id)
+                                    st.session_state[f"confirm_del_{q_id}"] = False
+                                    st.cache_data.clear()
+                                    st.rerun()
+                            with c2:
+                                if st.button("❌ 아니오", key=f"no_{q_id}"):
+                                    st.session_state[f"confirm_del_{q_id}"] = False
+                                    st.rerun()
                     
                     st.divider()
     
