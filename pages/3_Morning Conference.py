@@ -1,202 +1,78 @@
 import streamlit as st
-
 import time
-
 from datetime import datetime
-
 import gspread
-
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Morning Conference", page_icon="🏥")
 
 # 로그인 체크
-
 def require_login():
-
     if 'user_id' not in st.session_state or not st.session_state.user_id:
-
         st.warning("등록이 필요합니다")
-
         time.sleep(3)
-
         st.switch_page("app.py")
 
 require_login()
 
 # Google Sheets 연결
-
 def get_sheets_client():
-
     scopes = [
-
         "https://www.googleapis.com/auth/spreadsheets",
-
         "https://www.googleapis.com/auth/drive"
-
     ]
-
     credentials = Credentials.from_service_account_info(
-
         st.secrets["gcp_service_account"],
-
         scopes=scopes
-
     )
-
     return gspread.authorize(credentials)
 
 def get_conference_sheet():
-
     client = get_sheets_client()
-
     sheet_url = st.secrets["google_sheets"]["spreadsheet_url"]
-
     spreadsheet = client.open_by_url(sheet_url)
-
     try:
-
         return spreadsheet.worksheet("conference")
-
     except:
-
         worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=5)
-
         worksheet.append_row(["id", "author", "content", "created_at", "image_name"])
-
         return worksheet
 
-def add_comment(author, content, image_name=""):
-
-    """댓글 추가"""
-
-    sheet = get_conference_sheet()
-
-    comment_id = datetime.now().strftime('%Y%m%d%H%M%S')
-
-    created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    sheet.append_row([comment_id, author, content, created_at, image_name])
-
 def get_all_comments():
-
     """모든 댓글 가져오기"""
-
     sheet = get_conference_sheet()
-
     data = sheet.get_all_records()
-
     return data
 
 # ============ UI ============
-
 st.title("🏥 Morning Conference")
 
-st.write("사진을 공유하고 자유롭게 토론하세요.")
-
 st.divider()
 
-# 새 글 작성
-
-st.subheader("✍️ 새 글 작성")
-
-# 이미지 업로드
-
-uploaded_image = st.file_uploader("이미지 업로드 (선택)", type=['png', 'jpg', 'jpeg'])
-
-# 내용 입력
-
-new_content = st.text_area(
-
-    "내용",
-
-    placeholder="질문이나 의견을 입력하세요...",
-
-    height=100
-
-)
-
-if st.button("등록", type="primary"):
-
-    if new_content.strip():
-
-        image_name = ""
-
-        
-
-        # 이미지 저장
-
-        if uploaded_image:
-
-            image_name = f"conf_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uploaded_image.name}"
-
-            with open(f"image/{image_name}", "wb") as f:
-
-                f.write(uploaded_image.getbuffer())
-
-        
-
-        add_comment(st.session_state.user_id, new_content, image_name)
-
-        st.success("등록되었습니다!")
-
-        st.rerun()
-
-    else:
-
-        st.warning("내용을 입력해주세요.")
-
-st.divider()
-
-# 댓글 목록
-
-st.subheader("💬 토론")
-
+# 글 목록
 comments = get_all_comments()
 
 if not comments:
-
-    st.info("아직 글이 없습니다. 첫 글을 작성해보세요!")
-
+    st.info("아직 등록된 글이 없습니다.")
 else:
-
     # 최신순 정렬
-
     comments = sorted(comments, key=lambda x: x['id'], reverse=True)
-
     
-
     for comment in comments:
-
         with st.container():
-
             # 작성자, 시간
-
             st.markdown(f"**{comment['author']}** · {comment['created_at']}")
-
             
-
-            # 이미지 표시
-
-            if comment['image_name']:
-
-                try:
-
-                    st.image(f"image/{comment['image_name']}", width=400)
-
-                except:
-
-                    pass
-
-            
-
-            # 내용
-
+            # 내용 (이미지 위에 표시)
             st.write(comment['content'])
-
             
-
+            # 이미지 표시
+            if comment['image_name']:
+                try:
+                    st.image(f"image/{comment['image_name']}", width=400)
+                except:
+                    pass
+            
             st.divider()
-
 
 
