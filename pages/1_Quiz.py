@@ -390,17 +390,24 @@ else:
         st.markdown("**가장 적절한 답을 고르시오.**")
         st.markdown(f"{st.session_state.qid}. {row['question']}")
         
-        image_url = row.get('image_url', '')
-        if image_url and str(image_url).strip() and str(image_url).startswith('http'):
-            col1, col2, col3 = st.columns([1, 4, 1])
-            with col2:
-                st.image(image_url, use_container_width=True)
-        
-        video_url = row.get('video_url', '')
-        if video_url and str(video_url).strip() and str(video_url).startswith('http'):
-            col1, col2, col3 = st.columns([1, 4, 1])
-            with col2:
-                st.video(video_url)
+image_url = str(row.get('image_url', '') or '').strip()
+if image_url and image_url != 'nan' and image_url != '':
+    # http 체크 제거 (Google Drive 등 다양한 URL 지원)
+    col1, col2, col3 = st.columns([1, 4, 1])
+    with col2:
+        try:
+            st.image(image_url, use_container_width=True)
+        except Exception as e:
+            st.warning(f"이미지 로드 실패: {e}")
+
+video_url = str(row.get('video_url', '') or '').strip()
+if video_url and video_url != 'nan' and video_url != '':
+    col1, col2, col3 = st.columns([1, 4, 1])
+    with col2:
+        try:
+            st.video(video_url)
+        except Exception as e:
+            st.warning(f"동영상 로드 실패: {e}")
         
         choices = [c.strip() for c in str(row['choices']).split(',')]
         
