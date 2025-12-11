@@ -388,7 +388,7 @@ else:
         
         st.caption(f"📁 {CATEGORIES.get(category, category)} | 문제 {st.session_state.qid}/{len(df)}")
         st.markdown("**가장 적절한 답을 고르시오.**")
-        st.markdown(f"**{st.session_state.qid}. {row['question']}**")
+        st.markdown(f"{st.session_state.qid}. {row['question']}")
         
         image_url = row.get('image_url', '')
         if image_url and str(image_url).strip() and str(image_url).startswith('http'):
