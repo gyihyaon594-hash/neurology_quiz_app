@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import os
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
@@ -93,13 +94,17 @@ else:
                 st.markdown(f"## {content_above}")
             
             # 이미지 표시
-            if comment.get('image_name'):
-                try:
+            image_name = comment.get('image_name', '')
+            if image_name and str(image_name).strip():
+                image_path = f"image/{image_name}"
+                
+                # 파일 존재 여부 확인
+                if os.path.exists(image_path):
                     col1, col2, col3 = st.columns([1, 6, 1])
                     with col2:
-                        st.image(f"image/{comment['image_name']}", use_container_width=True)
-                except:
-                    pass
+                        st.image(image_path, use_container_width=True)
+                else:
+                    st.warning(f"이미지 파일을 찾을 수 없습니다: {image_path}")
             
             # 이미지 아래 내용
             content_below = comment.get('content_below', '')
