@@ -331,9 +331,10 @@ else:
                             except:
                                 st.warning("현재 이미지를 불러올 수 없습니다.")
                         
+                        # ⭐ 수정: 텍스트 일관성 있게 변경
                         edit_img_option = st.radio(
                             "이미지 변경",
-                            ["유지", "새 파일 업로드", "URL 변경", "삭제"],
+                            ["유지", "파일 업로드 (Google Drive 저장)", "URL 변경", "삭제"],
                             horizontal=True,
                             key=f"edit_img_opt_{q_id}"
                         )
@@ -341,7 +342,8 @@ else:
                         edit_image_url = current_img
                         new_image_file = None
                         
-                        if edit_img_option == "새 파일 업로드":
+                        # ⭐ 수정: 조건문도 일치하게 변경
+                        if edit_img_option == "파일 업로드 (Google Drive 저장)":
                             new_image_file = st.file_uploader(
                                 "새 이미지 선택",
                                 type=['png', 'jpg', 'jpeg', 'gif'],
@@ -349,6 +351,7 @@ else:
                             )
                             if new_image_file:
                                 st.image(new_image_file, caption="새 이미지 미리보기", width=300)
+                                st.info("💡 '저장' 버튼을 누르면 Google Drive에 이미지가 업로드됩니다.")
                         
                         elif edit_img_option == "URL 변경":
                             edit_image_url = st.text_input("이미지 URL", value=current_img, key=f"edit_img_url_{q_id}")
@@ -379,7 +382,8 @@ else:
                             if st.button("💾 저장", key=f"save_{q_id}", type="primary"):
                                 final_image_url = edit_image_url
                                 
-                                if edit_img_option == "새 파일 업로드" and new_image_file:
+                                # ⭐ 수정: 조건문도 일치하게 변경
+                                if edit_img_option == "파일 업로드 (Google Drive 저장)" and new_image_file:
                                     with st.spinner("이미지를 Google Drive에 업로드 중..."):
                                         uploaded_url = upload_image_to_drive(new_image_file)
                                         if uploaded_url:
@@ -413,39 +417,6 @@ else:
                             if st.button("❌ 취소", key=f"cancel_{q_id}"):
                                 st.session_state.edit_question_id = None
                                 st.rerun()
-                    else:
-                        col1, col2, col3 = st.columns([5, 1, 1])
-                        with col1:
-                            cat_name = CATEGORIES.get(q['category'], q['category'])
-                            st.markdown(f"**[{cat_name}]** {q['question'][:50]}...")
-                            media_info = []
-                            if q.get('image_url'):
-                                media_info.append("🖼️")
-                            if q.get('video_url'):
-                                media_info.append("🎬")
-                            media_str = " ".join(media_info) if media_info else ""
-                            st.caption(f"정답: {q['answer']} | 난이도: {q.get('difficulty', '-')} {media_str}")
-                        with col2:
-                            if st.button("✏️", key=f"edit_{q_id}"):
-                                st.session_state.edit_question_id = q_id
-                                st.rerun()
-                        with col3:
-                            if st.button("🗑️", key=f"del_{q_id}"):
-                                st.session_state[f"confirm_del_{q_id}"] = True
-                        
-                        if st.session_state.get(f"confirm_del_{q_id}", False):
-                            st.warning("정말 삭제하시겠습니까?")
-                            c1, c2 = st.columns(2)
-                            with c1:
-                                if st.button("✅ 예", key=f"yes_{q_id}"):
-                                    delete_question(q_id)
-                                    st.session_state[f"confirm_del_{q_id}"] = False
-                                    st.cache_data.clear()
-                                    st.rerun()
-                            with c2:
-                                if st.button("❌ 아니오", key=f"no_{q_id}"):
-                                    st.session_state[f"confirm_del_{q_id}"] = False
-                                    st.rerun()
                     
                     st.divider()
     
