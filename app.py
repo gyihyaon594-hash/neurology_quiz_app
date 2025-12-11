@@ -61,7 +61,7 @@ ALLOWED_USERS = {
 
 # 관리자 목록
 ADMIN_USERS = {
-    "윤지환": "8664"
+    "윤지환": "8663"
 }
 
 # 세션 상태 초기화
@@ -140,6 +140,7 @@ else:
                 st.rerun()
             else:
                 st.error("접근 권한이 없습니다.")
+
 
 
 
