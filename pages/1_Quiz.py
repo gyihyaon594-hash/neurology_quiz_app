@@ -72,10 +72,8 @@ def get_progress_sheet():
     except:
         return None
 
-# ⭐ 캐싱된 전체 문제 로드 (한 번만 호출)
-@st.cache_data(ttl=300)  # 5분간 캐싱
+@st.cache_data(ttl=300)
 def load_all_questions():
-    """Google Sheets에서 모든 문제를 한 번에 로드"""
     try:
         sheet = get_questions_sheet()
         data = sheet.get_all_records()
@@ -86,7 +84,6 @@ def load_all_questions():
         return pd.DataFrame()
 
 def get_questions_by_category(df, category):
-    """카테고리별 문제 필터링 (API 호출 없음)"""
     if df.empty:
         return pd.DataFrame()
     if category == "All":
@@ -94,7 +91,6 @@ def get_questions_by_category(df, category):
     return df[df['category'] == category].reset_index(drop=True)
 
 def get_category_counts(df):
-    """카테고리별 문제 수 계산 (API 호출 없음)"""
     if df.empty:
         return {cat: 0 for cat in CATEGORIES.keys()}
     counts = df['category'].value_counts().to_dict()
@@ -178,7 +174,6 @@ feedback_with_history = RunnableWithMessageHistory(
     history_messages_key="history",
 )
 
-# 메시지 함수들
 def send_message(message, role, save=True):
     with st.chat_message(role):
         st.markdown(message)
@@ -295,26 +290,30 @@ if "is_correct" not in st.session_state:
 # ============ UI ============
 st.title("🧠 신경학 Quiz")
 
-# ⭐ 전체 데이터 한 번만 로드 (캐싱됨)
 all_questions_df = load_all_questions()
 
 # 분과 선택 (카테고리 미선택 시)
 if st.session_state.selected_category is None:
     st.subheader("📚 학습 분과를 선택하세요")
     
-    # ⭐ 카테고리별 개수 한 번에 계산
     category_counts = get_category_counts(all_questions_df)
     
-    col1, col2 = st.columns(2)
+    # ⭐ 수정된 부분: 2개씩 묶어서 순서대로 표시
+    items = list(CATEGORIES.items())
     
-    for idx, (cat_en, cat_kr) in enumerate(CATEGORIES.items()):
-        with col1 if idx % 2 == 0 else col2:
+    for i in range(0, len(items), 2):
+        col1, col2 = st.columns(2)
+        
+        # 왼쪽 버튼
+        cat_en, cat_kr = items[i]
+        with col1:
             count = category_counts.get(cat_en, 0)
-            
-            if st.button(f"📖 {cat_kr} ({cat_en}) 문제 {count}개", 
-                        key=f"cat_{cat_en}",
-                        use_container_width=True,
-                        disabled=(count == 0)):
+            if st.button(
+                f"📖 {cat_kr} 문제 {count}개", 
+                key=f"cat_{cat_en}",
+                use_container_width=True,
+                disabled=(count == 0)
+            ):
                 st.session_state.selected_category = cat_en
                 st.session_state.qid = 1
                 st.session_state.submitted = False
@@ -323,8 +322,27 @@ if st.session_state.selected_category is None:
                 st.session_state.messages = []
                 st.session_state.learning_history = []
                 st.rerun()
+        
+        # 오른쪽 버튼
+        if i + 1 < len(items):
+            cat_en, cat_kr = items[i + 1]
+            with col2:
+                count = category_counts.get(cat_en, 0)
+                if st.button(
+                    f"📖 {cat_kr} 문제 {count}개", 
+                    key=f"cat_{cat_en}",
+                    use_container_width=True,
+                    disabled=(count == 0)
+                ):
+                    st.session_state.selected_category = cat_en
+                    st.session_state.qid = 1
+                    st.session_state.submitted = False
+                    st.session_state.selected = None
+                    st.session_state.feedback_given = False
+                    st.session_state.messages = []
+                    st.session_state.learning_history = []
+                    st.rerun()
     
-    # 새로고침 버튼
     st.divider()
     if st.button("🔄 문제 목록 새로고침"):
         st.cache_data.clear()
