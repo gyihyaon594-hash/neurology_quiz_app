@@ -3,8 +3,9 @@ import time
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
-import requests
-import base64
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import io
 
 st.set_page_config(page_title="문제 관리", page_icon="📝")
 
@@ -29,41 +30,8 @@ def require_login():
 
 require_login()
 
-# 이미지 업로드 함수 (imgbb 사용)
-def upload_image_to_imgbb(image_file):
-    """imgbb에 이미지 업로드하고 URL 반환"""
-    try:
-        # imgbb API 키 (무료로 발급: https://api.imgbb.com/)
-        api_key = st.secrets.get("imgbb", {}).get("api_key", "")
-        
-        if not api_key:
-            st.error("imgbb API 키가 설정되지 않았습니다.")
-            return None
-        
-        # 이미지를 base64로 인코딩
-        image_data = base64.b64encode(image_file.read()).decode('utf-8')
-        
-        # imgbb API 호출
-        response = requests.post(
-            "https://api.imgbb.com/1/upload",
-            data={
-                "key": api_key,
-                "image": image_data,
-                "name": image_file.name
-            }
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            return result['data']['url']
-        else:
-            st.error(f"이미지 업로드 실패: {response.text}")
-            return None
-    except Exception as e:
-        st.error(f"이미지 업로드 오류: {e}")
-        return None
-
-def get_sheets_client():
+# Google API 연결
+def get_google_credentials():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
@@ -72,7 +40,54 @@ def get_sheets_client():
         st.secrets["gcp_service_account"],
         scopes=scopes
     )
+    return credentials
+
+def get_sheets_client():
+    credentials = get_google_credentials()
     return gspread.authorize(credentials)
+
+# ⭐ Google Drive에 이미지 업로드
+def upload_image_to_drive(image_file):
+    """Google Drive에 이미지 업로드하고 URL 반환"""
+    try:
+        credentials = get_google_credentials()
+        service = build('drive', 'v3', credentials=credentials)
+        
+        # 파일 메타데이터
+        file_metadata = {
+            'name': f"quiz_{datetime.now().strftime('%Y%m%d%H%M%S')}_{image_file.name}",
+            'mimeType': image_file.type
+        }
+        
+        # 파일 업로드
+        media = MediaIoBaseUpload(
+            io.BytesIO(image_file.read()),
+            mimetype=image_file.type,
+            resumable=True
+        )
+        
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id'
+        ).execute()
+        
+        file_id = file.get('id')
+        
+        # 파일을 공개로 설정
+        service.permissions().create(
+            fileId=file_id,
+            body={'type': 'anyone', 'role': 'reader'}
+        ).execute()
+        
+        # 직접 접근 가능한 URL 반환
+        image_url = f"https://drive.google.com/uc?id={file_id}"
+        
+        return image_url
+    
+    except Exception as e:
+        st.error(f"이미지 업로드 오류: {e}")
+        return None
 
 def get_questions_sheet():
     client = get_sheets_client()
@@ -189,14 +204,15 @@ else:
         
         image_option = st.radio(
             "이미지 추가 방법",
-            ["없음", "파일 업로드", "URL 직접 입력"],
+            ["없음", "파일 업로드 (Google Drive 저장)", "URL 직접 입력"],
             horizontal=True,
             key="img_option"
         )
         
         image_url = ""
+        uploaded_image = None
         
-        if image_option == "파일 업로드":
+        if image_option == "파일 업로드 (Google Drive 저장)":
             uploaded_image = st.file_uploader(
                 "이미지 파일 선택", 
                 type=['png', 'jpg', 'jpeg', 'gif'],
@@ -204,7 +220,7 @@ else:
             )
             if uploaded_image:
                 st.image(uploaded_image, caption="미리보기", width=300)
-                st.info("💡 '문제 등록' 버튼을 누르면 이미지가 업로드됩니다.")
+                st.info("💡 '문제 등록' 버튼을 누르면 Google Drive에 이미지가 업로드됩니다.")
                 
         elif image_option == "URL 직접 입력":
             image_url = st.text_input("이미지 URL", placeholder="https://...", key="new_img_url")
@@ -227,17 +243,17 @@ else:
         
         if st.button("문제 등록", type="primary"):
             if question.strip() and choices.strip() and answer.strip():
-                # 이미지 업로드 처리
                 final_image_url = image_url
                 
-                if image_option == "파일 업로드" and uploaded_image:
-                    with st.spinner("이미지 업로드 중..."):
-                        uploaded_url = upload_image_to_imgbb(uploaded_image)
+                # 파일 업로드 처리
+                if image_option == "파일 업로드 (Google Drive 저장)" and uploaded_image:
+                    with st.spinner("이미지를 Google Drive에 업로드 중..."):
+                        uploaded_url = upload_image_to_drive(uploaded_image)
                         if uploaded_url:
                             final_image_url = uploaded_url
-                            st.success(f"이미지 업로드 완료!")
+                            st.success("이미지 업로드 완료!")
                         else:
-                            st.warning("이미지 업로드에 실패했습니다. 문제는 이미지 없이 등록됩니다.")
+                            st.warning("이미지 업로드 실패. 문제는 이미지 없이 등록됩니다.")
                 
                 data = {
                     'category': category,
@@ -293,7 +309,6 @@ else:
                                                        index=int(q.get('difficulty', 3)) - 1,
                                                        key=f"edit_diff_{q_id}")
                         
-                        # ⭐ 피드백 수정
                         st.markdown("**보기별 피드백**")
                         col1, col2 = st.columns(2)
                         with col1:
@@ -308,7 +323,7 @@ else:
                         st.markdown("---")
                         st.markdown("### 🖼️ 이미지 수정")
                         
-                        current_img = q.get('image_url', '')
+                        current_img = str(q.get('image_url', '') or '')
                         if current_img:
                             st.markdown("**현재 이미지:**")
                             try:
@@ -349,7 +364,7 @@ else:
                         
                         # ⭐ 동영상 수정
                         st.markdown("### 🎬 동영상 수정")
-                        current_video = q.get('video_url', '')
+                        current_video = str(q.get('video_url', '') or '')
                         edit_video_url = st.text_input("YouTube URL", value=current_video, key=f"edit_video_{q_id}")
                         if edit_video_url:
                             try:
@@ -362,12 +377,11 @@ else:
                         col1, col2 = st.columns(2)
                         with col1:
                             if st.button("💾 저장", key=f"save_{q_id}", type="primary"):
-                                # 새 이미지 업로드 처리
                                 final_image_url = edit_image_url
                                 
                                 if edit_img_option == "새 파일 업로드" and new_image_file:
-                                    with st.spinner("이미지 업로드 중..."):
-                                        uploaded_url = upload_image_to_imgbb(new_image_file)
+                                    with st.spinner("이미지를 Google Drive에 업로드 중..."):
+                                        uploaded_url = upload_image_to_drive(new_image_file)
                                         if uploaded_url:
                                             final_image_url = uploaded_url
                                             st.success("이미지 업로드 완료!")
@@ -404,7 +418,6 @@ else:
                         with col1:
                             cat_name = CATEGORIES.get(q['category'], q['category'])
                             st.markdown(f"**[{cat_name}]** {q['question'][:50]}...")
-                            # 이미지/동영상 표시
                             media_info = []
                             if q.get('image_url'):
                                 media_info.append("🖼️")
@@ -438,7 +451,5 @@ else:
     
     st.divider()
     if st.button("로그아웃"):
-        st.session_state.quiz_admin_authorized = False
-        st.rerun()
         st.session_state.quiz_admin_authorized = False
         st.rerun()
