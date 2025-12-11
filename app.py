@@ -76,7 +76,7 @@ if st.session_state.user_id:
     pages = {
         "학습": [
             st.Page("pages/1_Quiz.py", title="Quiz", icon="🧠"),
-            st.Page("pages/2_임상신경생리검사 및 SNSB.py", title="임상신경생리검사 및 SNSB", icon="🔬"),
+            st.Page("pages/2_임신생검사 및 SNSB.py", title="임신생검사 및 SNSB", icon="🔬"),
             st.Page("pages/3_Morning Conference.py", title="Morning Conference", icon="🏥"),
             st.Page("pages/4_대쉬보드.py", title="대쉬보드", icon="📊"),
             st.Page("pages/5_질문.py", title="질문", icon="❓"),
@@ -140,6 +140,7 @@ else:
                 st.rerun()
             else:
                 st.error("접근 권한이 없습니다.")
+
 
 
 
