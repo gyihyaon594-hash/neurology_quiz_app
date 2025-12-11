@@ -34,16 +34,16 @@ def get_conference_sheet():
     try:
         return spreadsheet.worksheet("conference")
     except:
-        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=5)
-        worksheet.append_row(["id", "author", "content", "created_at", "image_name"])
+        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=6)
+        worksheet.append_row(["id", "author", "content_above", "content_below", "created_at", "image_name"])
         return worksheet
 
-def add_comment(author, content, image_name=""):
+def add_comment(author, content_above, content_below, image_name=""):
     """댓글 추가"""
     sheet = get_conference_sheet()
     comment_id = datetime.now().strftime('%Y%m%d%H%M%S')
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    sheet.append_row([comment_id, author, content, created_at, image_name])
+    sheet.append_row([comment_id, author, content_above, content_below, created_at, image_name])
 
 # ============ UI ============
 st.title("✍️ 새글 작성")
@@ -80,20 +80,27 @@ else:
     
     st.divider()
     
+    # 이미지 위 내용 입력
+    content_above = st.text_area(
+        "이미지 위 내용",
+        placeholder="이미지 위에 표시할 내용을 입력하세요...",
+        height=100
+    )
+    
     # 이미지 업로드
     uploaded_image = st.file_uploader("이미지 업로드 (선택)", type=['png', 'jpg', 'jpeg'])
     
-    # 내용 입력
-    new_content = st.text_area(
-        "내용",
-        placeholder="질문이나 의견을 입력하세요...",
-        height=150
+    # 이미지 아래 내용 입력
+    content_below = st.text_area(
+        "이미지 아래 내용 (선택)",
+        placeholder="이미지 아래에 표시할 내용을 입력하세요...",
+        height=100
     )
     
     col1, col2 = st.columns([1, 4])
     with col1:
         if st.button("등록", type="primary"):
-            if new_content.strip():
+            if content_above.strip() or content_below.strip():
                 image_name = ""
                 
                 # 이미지 저장
@@ -102,7 +109,7 @@ else:
                     with open(f"image/{image_name}", "wb") as f:
                         f.write(uploaded_image.getbuffer())
                 
-                add_comment("윤지환", new_content, image_name)
+                add_comment("윤지환", content_above, content_below, image_name)
                 st.success("등록되었습니다!")
                 time.sleep(1)
                 st.switch_page("pages/3_Morning Conference.py")
