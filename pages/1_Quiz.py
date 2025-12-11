@@ -310,13 +310,11 @@ if st.session_state.selected_category is None:
     
     category_counts = get_category_counts(all_questions_df)
     
-    # ⭐ 수정된 부분: 2개씩 묶어서 순서대로 표시
     items = list(CATEGORIES.items())
     
     for i in range(0, len(items), 2):
         col1, col2 = st.columns(2)
         
-        # 왼쪽 버튼
         cat_en, cat_kr = items[i]
         with col1:
             count = category_counts.get(cat_en, 0)
@@ -335,7 +333,6 @@ if st.session_state.selected_category is None:
                 st.session_state.learning_history = []
                 st.rerun()
         
-        # 오른쪽 버튼
         if i + 1 < len(items):
             cat_en, cat_kr = items[i + 1]
             with col2:
@@ -390,23 +387,24 @@ else:
         st.markdown("**가장 적절한 답을 고르시오.**")
         st.markdown(f"{st.session_state.qid}. {row['question']}")
         
-image_url = str(row.get('image_url', '') or '').strip()
-if image_url and image_url != 'nan' and image_url != '':
-    col1, col2, col3 = st.columns([1, 4, 1])
-    with col2:
-        try:
-            st.image(image_url, use_container_width=True)
-        except Exception as e:
-            st.warning(f"이미지 로드 실패: {e}")
+        # ⭐ 수정된 부분: 들여쓰기 올바르게 수정
+        image_url = str(row.get('image_url', '') or '').strip()
+        if image_url and image_url != 'nan' and image_url != '':
+            col1, col2, col3 = st.columns([1, 4, 1])
+            with col2:
+                try:
+                    st.image(image_url, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"이미지 로드 실패: {e}")
 
-video_url = str(row.get('video_url', '') or '').strip()
-if video_url and video_url != 'nan' and video_url != '':
-    col1, col2, col3 = st.columns([1, 4, 1])
-    with col2:
-        try:
-            st.video(video_url)
-        except Exception as e:
-            st.warning(f"동영상 로드 실패: {e}")
+        video_url = str(row.get('video_url', '') or '').strip()
+        if video_url and video_url != 'nan' and video_url != '':
+            col1, col2, col3 = st.columns([1, 4, 1])
+            with col2:
+                try:
+                    st.video(video_url)
+                except Exception as e:
+                    st.warning(f"동영상 로드 실패: {e}")
         
         choices = [c.strip() for c in str(row['choices']).split(',')]
         
