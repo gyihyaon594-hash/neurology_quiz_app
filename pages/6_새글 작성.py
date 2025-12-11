@@ -61,6 +61,17 @@ def delete_post(post_id):
             return True
     return False
 
+def update_post(post_id, content_above, content_below):
+    """글 수정"""
+    sheet = get_conference_sheet()
+    data = sheet.get_all_values()
+    for idx, row in enumerate(data):
+        if str(row[0]) == str(post_id):
+            sheet.update_cell(idx + 1, 3, content_above)  # content_above
+            sheet.update_cell(idx + 1, 4, content_below)  # content_below
+            return True
+    return False
+
 # ============ UI ============
 st.title("✍️ 새글 작성")
 st.write("Morning Conference에 새 글을 등록합니다.")
@@ -70,6 +81,8 @@ st.divider()
 # 인증 상태 확인
 if 'write_authorized' not in st.session_state:
     st.session_state.write_authorized = False
+if 'edit_post_id' not in st.session_state:
+    st.session_state.edit_post_id = None
 
 # 인증되지 않은 경우
 if not st.session_state.write_authorized:
@@ -95,7 +108,7 @@ else:
     st.success("✅ 인증됨: 윤지환")
     
     # 탭으로 구분
-    tab1, tab2 = st.tabs(["✍️ 새글 작성", "🗑️ 글 관리"])
+    tab1, tab2 = st.tabs(["✍️ 새글 작성", "📝 글 관리"])
     
     # 탭 1: 새글 작성
     with tab1:
@@ -105,7 +118,8 @@ else:
         content_above = st.text_area(
             "이미지 위 내용",
             placeholder="이미지 위에 표시할 내용을 입력하세요...",
-            height=100
+            height=100,
+            key="new_content_above"
         )
         
         # 이미지 업로드
@@ -115,7 +129,8 @@ else:
         content_below = st.text_area(
             "이미지 아래 내용 (선택)",
             placeholder="이미지 아래에 표시할 내용을 입력하세요...",
-            height=100
+            height=100,
+            key="new_content_below"
         )
         
         if st.button("등록", type="primary"):
@@ -135,10 +150,9 @@ else:
             else:
                 st.warning("내용을 입력해주세요.")
     
-    # 탭 2: 글 관리 (삭제)
+    # 탭 2: 글 관리 (수정/삭제)
     with tab2:
         st.divider()
-        st.subheader("등록된 글 목록")
         
         posts = get_all_posts()
         
@@ -149,37 +163,80 @@ else:
             posts = sorted(posts, key=lambda x: x['id'], reverse=True)
             
             for post in posts:
-                col1, col2 = st.columns([5, 1])
-                with col1:
-                    content = post.get('content_above') or post.get('content', '')
-                    st.markdown(f"**{content[:50]}{'...' if len(content) > 50 else ''}**")
-                    st.caption(f"{post['author']} · {post['created_at']}")
-                with col2:
-                    if st.button("🗑️ 삭제", key=f"del_{post['id']}"):
-                        st.session_state[f"confirm_delete_{post['id']}"] = True
+                post_id = post['id']
+                content = post.get('content_above') or post.get('content', '')
                 
-                # 삭제 확인
-                if st.session_state.get(f"confirm_delete_{post['id']}", False):
-                    st.warning("정말 삭제하시겠습니까?")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("✅ 예, 삭제합니다", key=f"yes_{post['id']}"):
-                            delete_post(post['id'])
-                            st.session_state[f"confirm_delete_{post['id']}"] = False
-                            st.success("삭제되었습니다.")
-                            time.sleep(1)
-                            st.rerun()
-                    with col2:
-                        if st.button("❌ 취소", key=f"no_{post['id']}"):
-                            st.session_state[f"confirm_delete_{post['id']}"] = False
-                            st.rerun()
+                # 수정 모드인지 확인
+                is_editing = st.session_state.edit_post_id == post_id
                 
-                st.divider()
+                with st.container():
+                    if is_editing:
+                        # 수정 모드
+                        st.markdown("### ✏️ 글 수정")
+                        
+                        edit_above = st.text_area(
+                            "이미지 위 내용",
+                            value=post.get('content_above', ''),
+                            height=100,
+                            key=f"edit_above_{post_id}"
+                        )
+                        
+                        edit_below = st.text_area(
+                            "이미지 아래 내용",
+                            value=post.get('content_below', ''),
+                            height=100,
+                            key=f"edit_below_{post_id}"
+                        )
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("💾 저장", key=f"save_{post_id}", type="primary"):
+                                update_post(post_id, edit_above, edit_below)
+                                st.session_state.edit_post_id = None
+                                st.success("수정되었습니다!")
+                                time.sleep(1)
+                                st.rerun()
+                        with col2:
+                            if st.button("❌ 취소", key=f"cancel_{post_id}"):
+                                st.session_state.edit_post_id = None
+                                st.rerun()
+                    
+                    else:
+                        # 일반 모드
+                        col1, col2, col3 = st.columns([5, 1, 1])
+                        with col1:
+                            st.markdown(f"**{content[:50]}{'...' if len(content) > 50 else ''}**")
+                            st.caption(f"{post['author']} · {post['created_at']}")
+                        with col2:
+                            if st.button("✏️ 수정", key=f"edit_{post_id}"):
+                                st.session_state.edit_post_id = post_id
+                                st.rerun()
+                        with col3:
+                            if st.button("🗑️ 삭제", key=f"del_{post_id}"):
+                                st.session_state[f"confirm_delete_{post_id}"] = True
+                        
+                        # 삭제 확인
+                        if st.session_state.get(f"confirm_delete_{post_id}", False):
+                            st.warning("정말 삭제하시겠습니까?")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("✅ 예, 삭제합니다", key=f"yes_{post_id}"):
+                                    delete_post(post_id)
+                                    st.session_state[f"confirm_delete_{post_id}"] = False
+                                    st.success("삭제되었습니다.")
+                                    time.sleep(1)
+                                    st.rerun()
+                            with col2:
+                                if st.button("❌ 취소", key=f"no_{post_id}"):
+                                    st.session_state[f"confirm_delete_{post_id}"] = False
+                                    st.rerun()
+                    
+                    st.divider()
     
     # 로그아웃 버튼
     st.divider()
     if st.button("로그아웃"):
         st.session_state.write_authorized = False
+        st.session_state.edit_post_id = None
         st.rerun()
-
 
