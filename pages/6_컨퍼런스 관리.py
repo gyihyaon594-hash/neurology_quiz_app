@@ -4,7 +4,7 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 
-st.set_page_config(page_title="새글 작성", page_icon="✍️")
+st.set_page_config(page_title="컨퍼런스 관리", page_icon="✍️")
 
 # 로그인 체크
 def require_login():
