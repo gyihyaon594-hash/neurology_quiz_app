@@ -3,6 +3,9 @@ import time
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import io
 
 st.set_page_config(page_title="검사자료 관리", page_icon="🔬")
 
@@ -28,7 +31,8 @@ def require_login():
 
 require_login()
 
-def get_sheets_client():
+# Google API 연결
+def get_google_credentials():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
@@ -37,7 +41,54 @@ def get_sheets_client():
         st.secrets["gcp_service_account"],
         scopes=scopes
     )
+    return credentials
+
+def get_sheets_client():
+    credentials = get_google_credentials()
     return gspread.authorize(credentials)
+
+# ⭐ Google Drive에 이미지 업로드
+def upload_image_to_drive(image_file):
+    """Google Drive에 이미지 업로드하고 URL 반환"""
+    try:
+        credentials = get_google_credentials()
+        service = build('drive', 'v3', credentials=credentials)
+        
+        # 파일 메타데이터
+        file_metadata = {
+            'name': f"neurotest_{datetime.now().strftime('%Y%m%d%H%M%S')}_{image_file.name}",
+            'mimeType': image_file.type
+        }
+        
+        # 파일 업로드
+        media = MediaIoBaseUpload(
+            io.BytesIO(image_file.read()),
+            mimetype=image_file.type,
+            resumable=True
+        )
+        
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id'
+        ).execute()
+        
+        file_id = file.get('id')
+        
+        # 파일을 공개로 설정
+        service.permissions().create(
+            fileId=file_id,
+            body={'type': 'anyone', 'role': 'reader'}
+        ).execute()
+        
+        # 직접 접근 가능한 URL 반환
+        image_url = f"https://drive.google.com/uc?id={file_id}"
+        
+        return image_url
+    
+    except Exception as e:
+        st.error(f"이미지 업로드 오류: {e}")
+        return None
 
 def get_neurotest_sheet():
     client = get_sheets_client()
@@ -150,19 +201,41 @@ else:
         
         order = st.number_input("정렬 순서", min_value=1, value=1, help="숫자가 작을수록 먼저 표시됩니다")
         
+        # ⭐ 이미지 업로드 섹션
         st.markdown("---")
-        st.markdown("**미디어 (선택사항)**")
+        st.markdown("### 🖼️ 이미지 첨부")
         
-        image_url = st.text_input("이미지 URL", placeholder="https://...")
-        video_url = st.text_input("동영상 URL", placeholder="https://youtube.com/...")
+        image_option = st.radio(
+            "이미지 추가 방법",
+            ["없음", "파일 업로드 (Google Drive 저장)", "URL 직접 입력"],
+            horizontal=True,
+            key="new_img_option"
+        )
         
-        # 미리보기
-        if image_url:
-            try:
-                st.image(image_url, caption="이미지 미리보기", width=400)
-            except:
-                st.warning("이미지를 불러올 수 없습니다.")
+        image_url = ""
+        uploaded_image = None
         
+        if image_option == "파일 업로드 (Google Drive 저장)":
+            uploaded_image = st.file_uploader(
+                "이미지 파일 선택", 
+                type=['png', 'jpg', 'jpeg', 'gif'],
+                key="new_img_upload"
+            )
+            if uploaded_image:
+                st.image(uploaded_image, caption="미리보기", width=400)
+                st.info("💡 '자료 등록' 버튼을 누르면 Google Drive에 이미지가 업로드됩니다.")
+                
+        elif image_option == "URL 직접 입력":
+            image_url = st.text_input("이미지 URL", placeholder="https://...", key="new_img_url")
+            if image_url:
+                try:
+                    st.image(image_url, caption="이미지 미리보기", width=400)
+                except:
+                    st.warning("이미지를 불러올 수 없습니다.")
+        
+        # ⭐ 동영상 URL 입력
+        st.markdown("### 🎬 동영상 첨부")
+        video_url = st.text_input("YouTube URL (선택)", placeholder="https://youtube.com/watch?v=...", key="new_video")
         if video_url:
             try:
                 st.video(video_url)
@@ -178,11 +251,23 @@ else:
         
         if st.button("자료 등록", type="primary"):
             if title.strip() and content.strip():
+                final_image_url = image_url
+                
+                # 파일 업로드 처리
+                if image_option == "파일 업로드 (Google Drive 저장)" and uploaded_image:
+                    with st.spinner("이미지를 Google Drive에 업로드 중..."):
+                        uploaded_url = upload_image_to_drive(uploaded_image)
+                        if uploaded_url:
+                            final_image_url = uploaded_url
+                            st.success("이미지 업로드 완료!")
+                        else:
+                            st.warning("이미지 업로드 실패. 자료는 이미지 없이 등록됩니다.")
+                
                 data = {
                     'category': category,
                     'title': title,
                     'content': content,
-                    'image_url': image_url,
+                    'image_url': final_image_url,
                     'video_url': video_url,
                     'order': order,
                     'type': material_type
@@ -190,7 +275,6 @@ else:
                 material_id = add_material(data)
                 st.success(f"자료가 등록되었습니다! (ID: {material_id})")
                 st.balloons()
-                # 캐시 클리어
                 st.cache_data.clear()
             else:
                 st.warning("제목과 내용을 모두 입력해주세요.")
@@ -233,8 +317,6 @@ else:
                         )
                         edit_title = st.text_input("제목", value=m['title'], key=f"edit_title_{m_id}")
                         edit_content = st.text_area("내용", value=m['content'], height=150, key=f"edit_content_{m_id}")
-                        edit_image = st.text_input("이미지 URL", value=m.get('image_url', ''), key=f"edit_img_{m_id}")
-                        edit_video = st.text_input("동영상 URL", value=m.get('video_url', ''), key=f"edit_vid_{m_id}")
                         edit_order = st.number_input("정렬 순서", value=int(m.get('order', 1)), min_value=1, key=f"edit_ord_{m_id}")
                         edit_type = st.selectbox(
                             "자료 유형",
@@ -243,15 +325,83 @@ else:
                             key=f"edit_type_{m_id}"
                         )
                         
+                        # ⭐ 이미지 수정
+                        st.markdown("---")
+                        st.markdown("### 🖼️ 이미지 수정")
+                        
+                        current_img = str(m.get('image_url', '') or '')
+                        if current_img:
+                            st.markdown("**현재 이미지:**")
+                            try:
+                                st.image(current_img, width=400)
+                            except:
+                                st.warning("현재 이미지를 불러올 수 없습니다.")
+                        
+                        edit_img_option = st.radio(
+                            "이미지 변경",
+                            ["유지", "새 파일 업로드", "URL 변경", "삭제"],
+                            horizontal=True,
+                            key=f"edit_img_opt_{m_id}"
+                        )
+                        
+                        edit_image_url = current_img
+                        new_image_file = None
+                        
+                        if edit_img_option == "새 파일 업로드":
+                            new_image_file = st.file_uploader(
+                                "새 이미지 선택",
+                                type=['png', 'jpg', 'jpeg', 'gif'],
+                                key=f"edit_img_file_{m_id}"
+                            )
+                            if new_image_file:
+                                st.image(new_image_file, caption="새 이미지 미리보기", width=400)
+                        
+                        elif edit_img_option == "URL 변경":
+                            edit_image_url = st.text_input("이미지 URL", value=current_img, key=f"edit_img_url_{m_id}")
+                            if edit_image_url:
+                                try:
+                                    st.image(edit_image_url, caption="미리보기", width=400)
+                                except:
+                                    pass
+                        
+                        elif edit_img_option == "삭제":
+                            edit_image_url = ""
+                            st.info("저장 시 이미지가 삭제됩니다.")
+                        
+                        # ⭐ 동영상 수정
+                        st.markdown("### 🎬 동영상 수정")
+                        current_video = str(m.get('video_url', '') or '')
+                        edit_video_url = st.text_input("YouTube URL", value=current_video, key=f"edit_video_{m_id}")
+                        if edit_video_url:
+                            try:
+                                st.video(edit_video_url)
+                            except:
+                                st.warning("동영상을 불러올 수 없습니다.")
+                        
+                        st.markdown("---")
+                        
                         col1, col2 = st.columns(2)
                         with col1:
                             if st.button("💾 저장", key=f"save_{m_id}", type="primary"):
+                                final_image_url = edit_image_url
+                                
+                                # 새 이미지 업로드 처리
+                                if edit_img_option == "새 파일 업로드" and new_image_file:
+                                    with st.spinner("이미지를 Google Drive에 업로드 중..."):
+                                        uploaded_url = upload_image_to_drive(new_image_file)
+                                        if uploaded_url:
+                                            final_image_url = uploaded_url
+                                            st.success("이미지 업로드 완료!")
+                                        else:
+                                            st.warning("이미지 업로드 실패. 기존 이미지 유지.")
+                                            final_image_url = current_img
+                                
                                 update_data = {
                                     'category': edit_cat,
                                     'title': edit_title,
                                     'content': edit_content,
-                                    'image_url': edit_image,
-                                    'video_url': edit_video,
+                                    'image_url': final_image_url,
+                                    'video_url': edit_video_url,
                                     'order': edit_order,
                                     'type': edit_type
                                 }
@@ -271,8 +421,16 @@ else:
                         with col1:
                             cat_name = NEURO_TESTS.get(m['category'], m['category'])
                             type_emoji = {"lecture": "📚", "case": "🏥", "reference": "📖", "video": "🎬"}.get(m.get('type', ''), "📄")
+                            # 이미지/동영상 아이콘 추가
+                            media_icons = []
+                            if m.get('image_url'):
+                                media_icons.append("🖼️")
+                            if m.get('video_url'):
+                                media_icons.append("🎬")
+                            media_str = " ".join(media_icons)
+                            
                             st.markdown(f"**[{cat_name}]** {type_emoji} {m['title'][:50]}{'...' if len(m['title']) > 50 else ''}")
-                            st.caption(f"순서: {m.get('order', '-')} | 등록: {m.get('created_at', '-')}")
+                            st.caption(f"순서: {m.get('order', '-')} | 등록: {m.get('created_at', '-')} {media_str}")
                         with col2:
                             if st.button("✏️", key=f"edit_{m_id}"):
                                 st.session_state.edit_material_id = m_id
