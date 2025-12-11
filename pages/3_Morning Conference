@@ -1,13 +1,10 @@
 import streamlit as st
-import pandas as pd
 import time
-import os
-import requests
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 
-st.set_page_config(page_title="Morning Conference", page_icon="🏥", layout="wide")
+st.set_page_config(page_title="Morning Conference", page_icon="🏥")
 
 # 로그인 체크
 def require_login():
@@ -18,72 +15,7 @@ def require_login():
 
 require_login()
 
-# ============ Excel 파일 연동 ============
-CASES_FILE = "conference_cases.xlsx"
-
-@st.cache_data
-def load_cases(_file_mtime: float) -> pd.DataFrame:
-    """케이스 데이터 로드"""
-    if os.path.exists(CASES_FILE):
-        df = pd.read_excel(CASES_FILE, header=0, skiprows=[1])  # 영문 헤더 사용, 한글 헤더 스킵
-        return df
-    return pd.DataFrame(columns=[
-        'case_id', 'title', 'age', 'gender', 'chief_complaint', 'onset',
-        'history', 'vital_signs', 'current_status', 'question',
-        'image', 'video', 'author', 'created_at', 'status'
-    ])
-
-def save_cases(df: pd.DataFrame):
-    """케이스 데이터 저장"""
-    from openpyxl import load_workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    
-    # 기존 파일이 있으면 로드, 없으면 새로 생성
-    if os.path.exists(CASES_FILE):
-        wb = load_workbook(CASES_FILE)
-        sheet = wb.active
-        # 데이터 영역만 삭제 (헤더 유지)
-        for row in range(3, sheet.max_row + 1):
-            for col in range(1, 16):
-                sheet.cell(row=row, column=col).value = None
-    else:
-        from openpyxl import Workbook
-        wb = Workbook()
-        sheet = wb.active
-        sheet.title = "cases"
-        
-        # 헤더 설정
-        headers = ['case_id', 'title', 'age', 'gender', 'chief_complaint', 'onset',
-                   'history', 'vital_signs', 'current_status', 'question',
-                   'image', 'video', 'author', 'created_at', 'status']
-        korean_headers = ['케이스ID', '제목', '나이', '성별', '주증상', '발병시간',
-                         '과거력', '활력징후', '현재상태', '토론질문',
-                         '이미지', '동영상URL', '작성자', '작성일시', '상태']
-        
-        header_font = Font(bold=True, color='FFFFFF')
-        header_fill = PatternFill('solid', fgColor='4472C4')
-        
-        for col, (eng, kor) in enumerate(zip(headers, korean_headers), 1):
-            sheet.cell(row=1, column=col, value=eng).font = header_font
-            sheet.cell(row=1, column=col).fill = header_fill
-            sheet.cell(row=2, column=col, value=kor).font = Font(bold=True)
-    
-    # 데이터 쓰기
-    thin_border = Border(
-        left=Side(style='thin'), right=Side(style='thin'),
-        top=Side(style='thin'), bottom=Side(style='thin')
-    )
-    
-    for row_idx, row_data in enumerate(df.values, 3):
-        for col_idx, value in enumerate(row_data, 1):
-            cell = sheet.cell(row=row_idx, column=col_idx, value=value)
-            cell.border = thin_border
-            cell.alignment = Alignment(vertical='center', wrap_text=True)
-    
-    wb.save(CASES_FILE)
-    st.cache_data.clear()
-
-# ============ Google Sheets 연동 (댓글, 알림) ============
+# Google Sheets 연결
 def get_sheets_client():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -95,455 +27,93 @@ def get_sheets_client():
     )
     return gspread.authorize(credentials)
 
-def get_comments_sheet():
+def get_conference_sheet():
     client = get_sheets_client()
     sheet_url = st.secrets["google_sheets"]["spreadsheet_url"]
     spreadsheet = client.open_by_url(sheet_url)
     try:
-        return spreadsheet.worksheet("comments")
+        return spreadsheet.worksheet("conference")
     except:
-        worksheet = spreadsheet.add_worksheet(title="comments", rows=1000, cols=10)
-        worksheet.append_row(["comment_id", "case_id", "author", "content", "created_at", "mention_to", "is_question_to_prof"])
+        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=5)
+        worksheet.append_row(["id", "author", "content", "created_at", "image_name"])
         return worksheet
 
-def get_notifications_sheet():
-    client = get_sheets_client()
-    sheet_url = st.secrets["google_sheets"]["spreadsheet_url"]
-    spreadsheet = client.open_by_url(sheet_url)
-    try:
-        return spreadsheet.worksheet("notifications")
-    except:
-        worksheet = spreadsheet.add_worksheet(title="notifications", rows=1000, cols=10)
-        worksheet.append_row(["noti_id", "from_user", "to_user", "to_phone", "case_id", "message", "created_at", "is_read", "sms_sent"])
-        return worksheet
-
-# ============ SMS 발송 기능 ============
-def send_sms(to_phone: str, message: str) -> bool:
-    """
-    SMS 발송 함수 (SOLAPI 사용)
-    Secrets에 다음 값이 필요합니다:
-    [solapi]
-    api_key = "your_api_key"
-    api_secret = "your_api_secret"
-    sender = "발신번호"
-    """
-    try:
-        # SOLAPI 설정 확인
-        if "solapi" not in st.secrets:
-            st.warning("SMS 설정이 필요합니다. (SOLAPI API 키)")
-            return False
-        
-        api_key = st.secrets["solapi"]["api_key"]
-        api_secret = st.secrets["solapi"]["api_secret"]
-        sender = st.secrets["solapi"]["sender"]
-        
-        # 전화번호 포맷 정리 (하이픈 제거)
-        to_phone = to_phone.replace("-", "").replace(" ", "")
-        
-        # SOLAPI 메시지 발송
-        import hashlib
-        import hmac
-        import base64
-        import uuid
-        
-        date = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-        salt = str(uuid.uuid4())
-        signature = hmac.new(
-            api_secret.encode('utf-8'),
-            (date + salt).encode('utf-8'),
-            hashlib.sha256
-        ).digest()
-        signature = base64.b64encode(signature).decode('utf-8')
-        
-        headers = {
-            'Authorization': f'HMAC-SHA256 apiKey={api_key}, date={date}, salt={salt}, signature={signature}',
-            'Content-Type': 'application/json'
-        }
-        
-        data = {
-            "message": {
-                "to": to_phone,
-                "from": sender,
-                "text": message
-            }
-        }
-        
-        response = requests.post(
-            'https://api.solapi.com/messages/v4/send',
-            headers=headers,
-            json=data,
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            return True
-        else:
-            st.error(f"SMS 발송 실패: {response.text}")
-            return False
-            
-    except Exception as e:
-        st.error(f"SMS 발송 오류: {str(e)}")
-        return False
-
-# ============ 사용자/교수 목록 ============
-def get_users():
-    """사용자 목록 (실제로는 DB에서 가져와야 함)"""
-    residents = [
-        {"name": "전공의 A", "phone": "010-9320-8664"},
-        {"name": "전공의 B", "phone": "010-1234-5678"},
-        {"name": "전공의 C", "phone": "010-2345-6789"},
-        {"name": "전공의 D", "phone": "010-3456-7890"},
-        {"name": "전공의 E", "phone": "010-4567-8901"},
-    ]
-    professors = [
-        {"name": "A 교수님", "phone": "010-5678-9012"},
-        {"name": "B 교수님", "phone": "010-6789-0123"},
-        {"name": "C 교수님", "phone": "010-7890-1234"},
-    ]
-    return residents, professors
-
-def get_phone_by_name(name: str) -> str:
-    """이름으로 전화번호 찾기"""
-    residents, professors = get_users()
-    all_users = residents + professors
-    for user in all_users:
-        if user["name"] == name:
-            return user["phone"]
-    return ""
-
-# ============ 데이터 함수들 ============
-def add_case(author, title, age, gender, chief_complaint, onset, history, vital_signs, current_status, question, image="", video=""):
-    """새 케이스 추가"""
-    file_mtime = os.path.getmtime(CASES_FILE) if os.path.exists(CASES_FILE) else 0
-    df = load_cases(file_mtime)
-    
-    case_id = f"CASE_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    
-    new_row = pd.DataFrame([{
-        'case_id': case_id,
-        'title': title,
-        'age': age,
-        'gender': gender,
-        'chief_complaint': chief_complaint,
-        'onset': onset,
-        'history': history,
-        'vital_signs': vital_signs,
-        'current_status': current_status,
-        'question': question,
-        'image': image,
-        'video': video,
-        'author': author,
-        'created_at': created_at,
-        'status': 'active'
-    }])
-    
-    df = pd.concat([df, new_row], ignore_index=True)
-    save_cases(df)
-    return case_id
-
-def add_comment(case_id, author, content, mention_to=None, is_question_to_prof=False):
+def add_comment(author, content, image_name=""):
     """댓글 추가"""
-    sheet = get_comments_sheet()
-    comment_id = f"CMT_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    sheet = get_conference_sheet()
+    comment_id = datetime.now().strftime('%Y%m%d%H%M%S')
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    sheet.append_row([comment_id, case_id, author, content, created_at, mention_to or "", str(is_question_to_prof)])
-    
-    if mention_to:
-        phone = get_phone_by_name(mention_to)
-        add_notification(author, mention_to, phone, case_id, f"[Morning Conference] '{author}'님이 답변을 요청했습니다.")
-    
-    return comment_id
+    sheet.append_row([comment_id, author, content, created_at, image_name])
 
-def get_comments(case_id):
-    """댓글 가져오기"""
-    sheet = get_comments_sheet()
+def get_all_comments():
+    """모든 댓글 가져오기"""
+    sheet = get_conference_sheet()
     data = sheet.get_all_records()
-    if data:
-        df = pd.DataFrame(data)
-        return df[df['case_id'] == case_id]
-    return pd.DataFrame(columns=["comment_id", "case_id", "author", "content", "created_at", "mention_to", "is_question_to_prof"])
+    return data
 
-def add_notification(from_user, to_user, to_phone, case_id, message, send_sms_flag=False):
-    """알림 추가 및 SMS 발송"""
-    sheet = get_notifications_sheet()
-    noti_id = f"NOTI_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    
-    sms_sent = "False"
-    if send_sms_flag and to_phone:
-        if send_sms(to_phone, message):
-            sms_sent = "True"
-    
-    sheet.append_row([noti_id, from_user, to_user, to_phone, case_id, message, created_at, "False", sms_sent])
-
-def get_notifications(user_id):
-    """알림 가져오기"""
-    sheet = get_notifications_sheet()
-    data = sheet.get_all_records()
-    if data:
-        df = pd.DataFrame(data)
-        return df[df['to_user'] == user_id]
-    return pd.DataFrame()
-
-def mark_notification_read(noti_id):
-    """알림 읽음 처리"""
-    sheet = get_notifications_sheet()
-    try:
-        cell = sheet.find(noti_id)
-        sheet.update_cell(cell.row, 8, "True")
-    except:
-        pass
-
-# ============ UI 시작 ============
+# ============ UI ============
 st.title("🏥 Morning Conference")
-st.write("환자 케이스에 대해 자유롭게 토론하고 질문할 수 있는 공간입니다.")
+st.write("사진을 공유하고 자유롭게 토론하세요.")
 
-# 사이드바 - 알림
-with st.sidebar:
-    st.subheader("🔔 알림")
-    notifications = get_notifications(st.session_state.user_id)
-    unread = notifications[notifications['is_read'] == 'False'] if not notifications.empty else pd.DataFrame()
-    
-    if not unread.empty:
-        st.warning(f"읽지 않은 알림 {len(unread)}개")
-        for _, noti in unread.iterrows():
-            with st.expander(f"📩 {noti['from_user']}"):
-                st.write(noti['message'])
-                st.caption(noti['created_at'])
-                if st.button("읽음 처리", key=f"read_{noti['noti_id']}"):
-                    mark_notification_read(noti['noti_id'])
-                    st.rerun()
-    else:
-        st.info("새로운 알림이 없습니다.")
-
-# 탭 구성
-tab1, tab2, tab3 = st.tabs(["📋 케이스 목록", "➕ 새 케이스 등록", "📤 Push 알림"])
-
-# 탭 1: 케이스 목록 및 토론
-with tab1:
-    file_mtime = os.path.getmtime(CASES_FILE) if os.path.exists(CASES_FILE) else 0
-    cases = load_cases(file_mtime)
-    
-    if cases.empty:
-        st.info("등록된 케이스가 없습니다. 새 케이스를 등록해주세요.")
-    else:
-        for idx, case in cases.iterrows():
-            with st.expander(f"📁 {case['title']} - {case['author']} ({case['created_at']})"):
-                # 케이스 정보
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.markdown(f"**나이/성별:** {case['age']}세 {case['gender']}")
-                    st.markdown(f"**주증상:** {case['chief_complaint']}")
-                with col2:
-                    st.markdown(f"**발병시간:** {case['onset']}")
-                    st.markdown(f"**과거력:** {case['history']}")
-                with col3:
-                    st.markdown(f"**활력징후:** {case['vital_signs']}")
-                    st.markdown(f"**현재상태:** {case['current_status']}")
-                
-                st.divider()
-                st.markdown(f"**❓ 토론 질문:** {case['question']}")
-                
-                # 이미지/동영상 표시
-                if pd.notna(case.get('image')) and str(case['image']).strip():
-                    st.image(f"image/{case['image']}", width=400)
-                
-                if pd.notna(case.get('video')) and str(case['video']).strip():
-                    st.video(case['video'])
-                
-                st.divider()
-                
-                # 댓글 표시
-                st.markdown("**💬 토론:**")
-                comments = get_comments(case['case_id'])
-                
-                if not comments.empty:
-                    for _, comment in comments.iterrows():
-                        col1, col2 = st.columns([1, 10])
-                        with col1:
-                            if comment['is_question_to_prof'] == 'True':
-                                st.markdown("🎓")
-                            else:
-                                st.markdown("👤")
-                        with col2:
-                            mention_text = f" → **@{comment['mention_to']}**" if comment['mention_to'] else ""
-                            st.markdown(f"**{comment['author']}**{mention_text}")
-                            st.write(comment['content'])
-                            st.caption(comment['created_at'])
-                        st.markdown("---")
-                
-                # 새 댓글 작성
-                st.markdown("**✍️ 답변 작성:**")
-                
-                residents, professors = get_users()
-                resident_names = [r['name'] for r in residents]
-                professor_names = [p['name'] for p in professors]
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    mention_resident = st.selectbox(
-                        "♠ 전공의에게 답변 요청",
-                        ["선택 안 함"] + resident_names,
-                        key=f"mention_res_{case['case_id']}"
-                    )
-                with col2:
-                    mention_prof = st.selectbox(
-                        "■ 교수님에게 질문하기",
-                        ["선택 안 함"] + professor_names,
-                        key=f"mention_prof_{case['case_id']}"
-                    )
-                
-                new_comment = st.text_area(
-                    "답변 내용",
-                    key=f"comment_{case['case_id']}",
-                    placeholder="답변을 입력하세요..."
-                )
-                
-                if st.button("답변 등록", key=f"submit_{case['case_id']}", type="primary"):
-                    if new_comment.strip():
-                        mention_to = None
-                        is_prof_question = False
-                        
-                        if mention_resident != "선택 안 함":
-                            mention_to = mention_resident
-                        elif mention_prof != "선택 안 함":
-                            mention_to = mention_prof
-                            is_prof_question = True
-                        
-                        add_comment(
-                            case['case_id'],
-                            st.session_state.user_id,
-                            new_comment,
-                            mention_to,
-                            is_prof_question
-                        )
-                        st.success("답변이 등록되었습니다!")
-                        st.rerun()
-                    else:
-                        st.warning("답변 내용을 입력해주세요.")
-
-# 탭 2: 새 케이스 등록
-with tab2:
-    st.subheader("새 케이스 등록")
-    
-    case_title = st.text_input("케이스 제목", placeholder="예: 72세 남성 급성 뇌경색 의심")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        age = st.number_input("나이", min_value=0, max_value=150, value=65)
-        chief_complaint = st.text_input("주증상", placeholder="예: 우측 상하지 위약감")
-        history = st.text_input("과거력", placeholder="예: 고혈압, 당뇨")
-        current_status = st.text_input("현재 상태", placeholder="예: NIHSS 8점, 의식 명료")
-    with col2:
-        gender = st.selectbox("성별", ["남", "여"])
-        onset = st.text_input("발병 시간", placeholder="예: 내원 2시간 전")
-        vital_signs = st.text_input("활력징후", placeholder="예: BP 180/100, HR 88")
-        image_file = st.text_input("이미지 파일명", placeholder="예: case001.png (image 폴더)")
-    
-    video_url = st.text_input("동영상 URL (선택)", placeholder="예: https://www.youtube.com/watch?v=...")
-    
-    case_question = st.text_area(
-        "토론 질문",
-        height=100,
-        placeholder="예: 현재 해야 할 처치와 입원해서 어떤 검사를 추가로 시행해야 할까요?"
-    )
-    
-    if st.button("케이스 등록", type="primary"):
-        if case_title.strip() and case_question.strip():
-            case_id = add_case(
-                st.session_state.user_id,
-                case_title, age, gender, chief_complaint, onset,
-                history, vital_signs, current_status, case_question,
-                image_file, video_url
-            )
-            st.success(f"케이스가 등록되었습니다! (ID: {case_id})")
-            st.balloons()
-            time.sleep(1)
-            st.rerun()
-        else:
-            st.warning("제목과 토론 질문을 입력해주세요.")
-
-# 탭 3: Push 알림 (SMS 포함)
-with tab3:
-    st.subheader("📤 Push 알림 보내기")
-    st.write("특정 사용자에게 케이스 토론 참여를 요청합니다.")
-    
-    residents, professors = get_users()
-    all_users = [(u['name'], u['phone']) for u in residents + professors]
-    user_dict = {u[0]: u[1] for u in all_users}
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        target_user = st.selectbox("요청할 대상", list(user_dict.keys()))
-        target_phone = user_dict.get(target_user, "")
-        st.caption(f"📱 전화번호: {target_phone}")
-    
-    with col2:
-        file_mtime = os.path.getmtime(CASES_FILE) if os.path.exists(CASES_FILE) else 0
-        cases = load_cases(file_mtime)
-        if not cases.empty:
-            case_options = {f"{row['title']} ({row['case_id']})": row['case_id'] for _, row in cases.iterrows()}
-            selected_case = st.selectbox("관련 케이스", list(case_options.keys()))
-            selected_case_id = case_options[selected_case]
-        else:
-            st.warning("등록된 케이스가 없습니다.")
-            selected_case_id = None
-    
-    push_message = st.text_area(
-        "요청 메시지",
-        value="[Morning Conference] 케이스 토론에 참여해주세요.",
-        placeholder="예: 이 케이스에 대해 의견 부탁드립니다."
-    )
-    
-    send_sms_option = st.checkbox("📱 SMS로도 발송", value=True)
-    
-    st.divider()
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("📤 Push 알림 보내기", type="primary", use_container_width=True):
-            if target_user and selected_case_id and push_message.strip():
-                add_notification(
-                    st.session_state.user_id,
-                    target_user,
-                    target_phone,
-                    selected_case_id,
-                    push_message,
-                    send_sms_flag=send_sms_option
-                )
-                if send_sms_option:
-                    st.success(f"'{target_user}'님에게 알림과 SMS를 보냈습니다!")
-                else:
-                    st.success(f"'{target_user}'님에게 알림을 보냈습니다!")
-            else:
-                st.warning("모든 항목을 입력해주세요.")
-    
-    with col2:
-        # 직접 전화번호 입력하여 SMS 발송
-        st.markdown("**또는 직접 SMS 발송:**")
-    
-    st.divider()
-    st.markdown("### 📱 직접 SMS 발송")
-    
-    direct_phone = st.text_input("전화번호", value="010-9320-8664", placeholder="010-1234-5678")
-    direct_message = st.text_area(
-        "메시지 내용",
-        value="[Morning Conference] 새로운 케이스가 등록되었습니다. 앱에서 확인해주세요.",
-        key="direct_sms_message"
-    )
-    
-    if st.button("📱 SMS 직접 발송", type="secondary"):
-        if direct_phone.strip() and direct_message.strip():
-            if send_sms(direct_phone, direct_message):
-                st.success(f"'{direct_phone}'로 SMS를 발송했습니다!")
-            else:
-                st.error("SMS 발송에 실패했습니다. SOLAPI 설정을 확인해주세요.")
-        else:
-            st.warning("전화번호와 메시지를 입력해주세요.")
-
-# 페이지 하단 안내
 st.divider()
-st.caption("💡 Tip: 사이드바에서 알림을 확인할 수 있습니다. SMS 발송을 위해서는 SOLAPI 설정이 필요합니다.")
+
+# 새 글 작성
+st.subheader("✍️ 새 글 작성")
+
+# 이미지 업로드
+uploaded_image = st.file_uploader("이미지 업로드 (선택)", type=['png', 'jpg', 'jpeg'])
+
+# 내용 입력
+new_content = st.text_area(
+    "내용",
+    placeholder="질문이나 의견을 입력하세요...",
+    height=100
+)
+
+if st.button("등록", type="primary"):
+    if new_content.strip():
+        image_name = ""
+        
+        # 이미지 저장
+        if uploaded_image:
+            image_name = f"conf_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uploaded_image.name}"
+            with open(f"image/{image_name}", "wb") as f:
+                f.write(uploaded_image.getbuffer())
+        
+        add_comment(st.session_state.user_id, new_content, image_name)
+        st.success("등록되었습니다!")
+        st.rerun()
+    else:
+        st.warning("내용을 입력해주세요.")
+
+st.divider()
+
+# 댓글 목록
+st.subheader("💬 토론")
+
+comments = get_all_comments()
+
+if not comments:
+    st.info("아직 글이 없습니다. 첫 글을 작성해보세요!")
+else:
+    # 최신순 정렬
+    comments = sorted(comments, key=lambda x: x['id'], reverse=True)
+    
+    for comment in comments:
+        with st.container():
+            # 작성자, 시간
+            st.markdown(f"**{comment['author']}** · {comment['created_at']}")
+            
+            # 이미지 표시
+            if comment['image_name']:
+                try:
+                    st.image(f"image/{comment['image_name']}", width=400)
+                except:
+                    pass
+            
+            # 내용
+            st.write(comment['content'])
+            
+            st.divider()
+
 
