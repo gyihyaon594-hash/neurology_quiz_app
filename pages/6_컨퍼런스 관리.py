@@ -74,8 +74,8 @@ def update_post(post_id, content_above, content_below, image_url=""):
     return False
 
 # ============ UI ============
-st.title("✍️ 새글 작성")
-st.write("Morning Conference에 새 글을 등록합니다.")
+st.title("✍️ 컨퍼런스 관리")
+st.write("Morning Conference에 새 컨퍼런스 내용을 등록합니다.")
 
 st.divider()
 
