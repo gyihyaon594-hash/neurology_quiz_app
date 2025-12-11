@@ -60,19 +60,20 @@ else:
     
     for comment in comments:
         with st.container():
-            # 작성자, 시간 (더 크게)
-            st.markdown(f"### {comment['author']} · {comment['created_at']}")
+            # 작성자, 시간
+            st.caption(f"{comment['author']} · {comment['created_at']}")
             
-            # 내용 (더 크게)
-            st.markdown(f"<p style='font-size:20px;'>{comment['content']}</p>", unsafe_allow_html=True)
+            # 내용 (크게 표시)
+            st.markdown(f"## {comment['content']}")
             
-            # 이미지 표시 (전체 너비)
+            # 이미지 표시 (반응형, 최대 800px)
             if comment['image_name']:
                 try:
-                    st.image(f"image/{comment['image_name']}", use_container_width=True)
+                    col1, col2, col3 = st.columns([1, 6, 1])
+                    with col2:
+                        st.image(f"image/{comment['image_name']}", use_container_width=True)
                 except:
                     pass
             
             st.divider()
-
 
