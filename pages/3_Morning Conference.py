@@ -4,7 +4,7 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 
-st.set_page_config(page_title="Morning Conference", page_icon="🏥")
+st.set_page_config(page_title="Morning Conference", page_icon="🏥", layout="wide")
 
 # 로그인 체크
 def require_login():
@@ -60,16 +60,16 @@ else:
     
     for comment in comments:
         with st.container():
-            # 작성자, 시간
-            st.markdown(f"**{comment['author']}** · {comment['created_at']}")
+            # 작성자, 시간 (더 크게)
+            st.markdown(f"### {comment['author']} · {comment['created_at']}")
             
-            # 내용 (이미지 위에 표시)
-            st.write(comment['content'])
+            # 내용 (더 크게)
+            st.markdown(f"<p style='font-size:20px;'>{comment['content']}</p>", unsafe_allow_html=True)
             
-            # 이미지 표시
+            # 이미지 표시 (전체 너비)
             if comment['image_name']:
                 try:
-                    st.image(f"image/{comment['image_name']}", width=400)
+                    st.image(f"image/{comment['image_name']}", use_container_width=True)
                 except:
                     pass
             
