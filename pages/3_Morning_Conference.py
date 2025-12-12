@@ -1,6 +1,5 @@
 import streamlit as st
 import time
-import os
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
@@ -12,7 +11,7 @@ def require_login():
     if 'user_id' not in st.session_state or not st.session_state.user_id:
         st.warning("등록이 필요합니다")
         time.sleep(3)
-        st.switch_page("app.py")
+        st.rerun()
 
 require_login()
 
@@ -35,8 +34,8 @@ def get_conference_sheet():
     try:
         return spreadsheet.worksheet("conference")
     except:
-        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=6)
-        worksheet.append_row(["id", "author", "content_above", "content_below", "created_at", "image_name"])
+        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=7)
+        worksheet.append_row(["id", "author", "content_above", "content_below", "created_at", "image_url", "video_url"])
         return worksheet
 
 def get_replies_sheet():
@@ -50,7 +49,8 @@ def get_replies_sheet():
         worksheet.append_row(["reply_id", "post_id", "author", "content", "created_at"])
         return worksheet
 
-def get_all_comments():
+@st.cache_data(ttl=300)
+def get_all_posts():
     """모든 글 가져오기"""
     sheet = get_conference_sheet()
     data = sheet.get_all_records()
@@ -72,42 +72,56 @@ def add_reply(post_id, author, content):
 # ============ UI ============
 st.title("🏥 Morning Conference")
 
+# 새로고침 버튼
+col1, col2 = st.columns([6, 1])
+with col2:
+    if st.button("🔄 새로고침"):
+        st.cache_data.clear()
+        st.rerun()
+
 st.divider()
 
 # 글 목록
-comments = get_all_comments()
+posts = get_all_posts()
 
-if not comments:
+if not posts:
     st.info("아직 등록된 글이 없습니다.")
 else:
     # 최신순 정렬
-    comments = sorted(comments, key=lambda x: x['id'], reverse=True)
+    posts = sorted(posts, key=lambda x: x['id'], reverse=True)
     
-    for comment in comments:
+    for post in posts:
         with st.container():
             # 작성자, 시간
-            st.caption(f"{comment['author']} · {comment['created_at']}")
+            st.caption(f"{post['author']} · {post['created_at']}")
             
             # 이미지 위 내용
-            content_above = comment.get('content_above') or comment.get('content', '')
+            content_above = post.get('content_above') or post.get('content', '')
             if content_above:
                 st.markdown(f"## {content_above}")
             
-            # 이미지 표시
-            image_name = comment.get('image_name', '')
-            if image_name and str(image_name).strip():
-                image_path = f"image/{image_name}"
-                
-                # 파일 존재 여부 확인
-                if os.path.exists(image_path):
-                    col1, col2, col3 = st.columns([1, 6, 1])
-                    with col2:
-                        st.image(image_path, use_container_width=True)
-                else:
-                    st.warning(f"이미지 파일을 찾을 수 없습니다: {image_path}")
+            # ⭐ 이미지 표시 (URL 방식으로 수정)
+            image_url = str(post.get('image_url', '') or post.get('image_name', '') or '').strip()
+            if image_url and image_url != 'nan' and image_url != '':
+                col1, col2, col3 = st.columns([1, 6, 1])
+                with col2:
+                    try:
+                        st.image(image_url, use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"이미지를 불러올 수 없습니다: {e}")
+            
+            # ⭐ 동영상 표시 (추가)
+            video_url = str(post.get('video_url', '') or '').strip()
+            if video_url and video_url != 'nan' and video_url != '':
+                col1, col2, col3 = st.columns([1, 6, 1])
+                with col2:
+                    try:
+                        st.video(video_url)
+                    except Exception as e:
+                        st.warning(f"동영상을 불러올 수 없습니다: {e}")
             
             # 이미지 아래 내용
-            content_below = comment.get('content_below', '')
+            content_below = post.get('content_below', '')
             if content_below:
                 st.markdown(f"**{content_below}**")
             
@@ -116,7 +130,7 @@ else:
             st.markdown("**💬 의견**")
             
             # 기존 댓글 표시
-            replies = get_replies(comment['id'])
+            replies = get_replies(post['id'])
             if replies:
                 for reply in replies:
                     st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;**{reply['author']}** · {reply['created_at']}")
@@ -129,13 +143,14 @@ else:
                 new_reply = st.text_input(
                     "의견 입력",
                     placeholder="의견을 입력하세요...",
-                    key=f"reply_{comment['id']}",
+                    key=f"reply_{post['id']}",
                     label_visibility="collapsed"
                 )
             with col2:
-                if st.button("등록", key=f"btn_{comment['id']}"):
+                if st.button("등록", key=f"btn_{post['id']}"):
                     if new_reply.strip():
-                        add_reply(comment['id'], st.session_state.user_id, new_reply)
+                        add_reply(post['id'], st.session_state.user_id, new_reply)
+                        st.cache_data.clear()
                         st.rerun()
                     else:
                         st.warning("내용을 입력해주세요.")
