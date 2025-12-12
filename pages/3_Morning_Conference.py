@@ -51,26 +51,22 @@ def get_replies_sheet():
 
 @st.cache_data(ttl=300)
 def get_all_posts():
-    """모든 글 가져오기"""
     sheet = get_conference_sheet()
     data = sheet.get_all_records()
     return data
 
 def get_replies(post_id):
-    """특정 글의 댓글 가져오기"""
     sheet = get_replies_sheet()
     data = sheet.get_all_records()
     return [r for r in data if str(r['post_id']) == str(post_id)]
 
 def add_reply(post_id, author, content):
-    """댓글 추가"""
     sheet = get_replies_sheet()
     reply_id = datetime.now().strftime('%Y%m%d%H%M%S')
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     sheet.append_row([reply_id, post_id, author, content, created_at])
 
 def is_valid_url(url):
-    """유효한 URL인지 확인"""
     if not url:
         return False
     url = str(url).strip()
@@ -81,7 +77,6 @@ def is_valid_url(url):
     return False
 
 def parse_image_urls(image_urls_str):
-    """쉼표로 구분된 이미지 URL 문자열을 리스트로 변환"""
     if not image_urls_str:
         return []
     urls = str(image_urls_str).split(',')
@@ -89,6 +84,45 @@ def parse_image_urls(image_urls_str):
 
 # ============ UI ============
 st.title("🏥 Morning Conference")
+
+# ⭐ 반응형 이미지 CSS
+st.markdown("""
+<style>
+    .responsive-img {
+        max-width: 100%;
+        max-height: 500px;
+        width: auto;
+        height: auto;
+        display: block;
+        margin: 10px auto;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .image-gallery {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        margin: 15px 0;
+    }
+    .gallery-item {
+        flex: 1 1 300px;
+        max-width: 400px;
+    }
+    .gallery-item img {
+        width: 100%;
+        height: auto;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    @media (max-width: 768px) {
+        .gallery-item {
+            flex: 1 1 100%;
+            max-width: 100%;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # 새로고침 버튼
 col1, col2 = st.columns([6, 1])
@@ -105,46 +139,51 @@ posts = get_all_posts()
 if not posts:
     st.info("아직 등록된 글이 없습니다.")
 else:
-    # 최신순 정렬
     posts = sorted(posts, key=lambda x: x['id'], reverse=True)
     
     for post in posts:
         with st.container():
-            # 작성자, 시간
             st.caption(f"{post.get('author', '')} · {post.get('created_at', '')}")
             
-            # 내용 표시
             content = post.get('content', '') or post.get('content_above', '') or ''
             if content:
                 st.markdown(f"## {content}")
             
-            # ⭐ 여러 이미지 표시
+            # ⭐ 반응형 이미지 갤러리
             image_urls_str = str(post.get('image_urls', '') or post.get('image_url', '') or post.get('image_name', '') or '')
             image_urls = parse_image_urls(image_urls_str)
             
             if image_urls:
-                col1, col2, col3 = st.columns([1, 6, 1])
-                with col2:
+                if len(image_urls) == 1:
+                    # 단일 이미지: 중앙 정렬, 최대 너비 제한
+                    st.markdown(f"""
+                    <div style="text-align: center;">
+                        <img src="{image_urls[0]}" class="responsive-img" alt="이미지">
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    # 여러 이미지: 갤러리 형태
+                    gallery_html = '<div class="image-gallery">'
                     for idx, img_url in enumerate(image_urls):
-                        try:
-                            st.image(img_url, use_container_width=True)
-                            if len(image_urls) > 1:
-                                st.caption(f"이미지 {idx + 1}/{len(image_urls)}")
-                        except Exception as e:
-                            st.warning(f"이미지를 불러올 수 없습니다: {img_url}")
+                        gallery_html += f'''
+                        <div class="gallery-item">
+                            <img src="{img_url}" alt="이미지 {idx+1}">
+                            <p style="text-align: center; font-size: 12px; color: #666;">이미지 {idx+1}/{len(image_urls)}</p>
+                        </div>
+                        '''
+                    gallery_html += '</div>'
+                    st.markdown(gallery_html, unsafe_allow_html=True)
             
-            # ⭐ 동영상 표시
+            # 동영상 표시
             video_url = str(post.get('video_url', '') or '').strip()
-            
             if is_valid_url(video_url):
-                col1, col2, col3 = st.columns([1, 6, 1])
+                col1, col2, col3 = st.columns([1, 4, 1])
                 with col2:
                     try:
                         st.video(video_url)
-                    except Exception as e:
-                        st.warning(f"동영상을 불러올 수 없습니다.")
+                    except:
+                        st.warning("동영상을 불러올 수 없습니다.")
             
-            # 이미지 아래 내용
             content_below = post.get('content_below', '')
             if content_below:
                 st.markdown(f"**{content_below}**")
@@ -153,7 +192,6 @@ else:
             st.markdown("---")
             st.markdown("**💬 의견**")
             
-            # 기존 댓글 표시
             replies = get_replies(post['id'])
             if replies:
                 for reply in replies:
@@ -161,7 +199,6 @@ else:
                     st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;{reply['content']}")
                     st.markdown("")
             
-            # 새 댓글 입력
             col1, col2 = st.columns([5, 1])
             with col1:
                 new_reply = st.text_input(
