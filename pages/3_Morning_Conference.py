@@ -72,9 +72,7 @@ def is_valid_url(url):
     url = str(url).strip()
     if url in ['', 'nan', 'None']:
         return False
-    if url.startswith('http://') or url.startswith('https://'):
-        return True
-    return False
+    return url.startswith('http://') or url.startswith('https://')
 
 def parse_image_urls(image_urls_str):
     if not image_urls_str:
@@ -84,45 +82,6 @@ def parse_image_urls(image_urls_str):
 
 # ============ UI ============
 st.title("🏥 Morning Conference")
-
-# ⭐ 반응형 이미지 CSS
-st.markdown("""
-<style>
-    .responsive-img {
-        max-width: 100%;
-        max-height: 500px;
-        width: auto;
-        height: auto;
-        display: block;
-        margin: 10px auto;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .image-gallery {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: center;
-        margin: 15px 0;
-    }
-    .gallery-item {
-        flex: 1 1 300px;
-        max-width: 400px;
-    }
-    .gallery-item img {
-        width: 100%;
-        height: auto;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    @media (max-width: 768px) {
-        .gallery-item {
-            flex: 1 1 100%;
-            max-width: 100%;
-        }
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # 새로고침 버튼
 col1, col2 = st.columns([6, 1])
@@ -149,35 +108,42 @@ else:
             if content:
                 st.markdown(f"## {content}")
             
-            # ⭐ 반응형 이미지 갤러리
+            # ⭐ 이미지 표시 (st.image 사용, 반응형)
             image_urls_str = str(post.get('image_urls', '') or post.get('image_url', '') or post.get('image_name', '') or '')
             image_urls = parse_image_urls(image_urls_str)
             
             if image_urls:
                 if len(image_urls) == 1:
-                    # 단일 이미지: 중앙 정렬, 최대 너비 제한
-                    st.markdown(f"""
-                    <div style="text-align: center;">
-                        <img src="{image_urls[0]}" class="responsive-img" alt="이미지">
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # 단일 이미지: 중앙 정렬
+                    col1, col2, col3 = st.columns([1, 3, 1])
+                    with col2:
+                        try:
+                            st.image(image_urls[0], use_container_width=True)
+                        except:
+                            st.warning("이미지를 불러올 수 없습니다.")
                 else:
-                    # 여러 이미지: 갤러리 형태
-                    gallery_html = '<div class="image-gallery">'
-                    for idx, img_url in enumerate(image_urls):
-                        gallery_html += f'''
-                        <div class="gallery-item">
-                            <img src="{img_url}" alt="이미지 {idx+1}">
-                            <p style="text-align: center; font-size: 12px; color: #666;">이미지 {idx+1}/{len(image_urls)}</p>
-                        </div>
-                        '''
-                    gallery_html += '</div>'
-                    st.markdown(gallery_html, unsafe_allow_html=True)
+                    # 여러 이미지: 2열 또는 3열 그리드
+                    num_cols = min(len(image_urls), 2)  # 최대 2열
+                    
+                    # 중앙 정렬을 위한 외부 컬럼
+                    outer_col1, outer_col2, outer_col3 = st.columns([1, 4, 1])
+                    with outer_col2:
+                        # 이미지들을 행별로 표시
+                        for i in range(0, len(image_urls), num_cols):
+                            cols = st.columns(num_cols)
+                            for j in range(num_cols):
+                                if i + j < len(image_urls):
+                                    with cols[j]:
+                                        try:
+                                            st.image(image_urls[i + j], use_container_width=True)
+                                            st.caption(f"이미지 {i + j + 1}/{len(image_urls)}")
+                                        except:
+                                            st.warning(f"이미지 {i + j + 1} 로드 실패")
             
             # 동영상 표시
             video_url = str(post.get('video_url', '') or '').strip()
             if is_valid_url(video_url):
-                col1, col2, col3 = st.columns([1, 4, 1])
+                col1, col2, col3 = st.columns([1, 3, 1])
                 with col2:
                     try:
                         st.video(video_url)
