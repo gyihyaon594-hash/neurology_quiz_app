@@ -35,7 +35,7 @@ def get_conference_sheet():
         return spreadsheet.worksheet("conference")
     except:
         worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=6)
-        worksheet.append_row(["id", "author", "content", "created_at", "image_url", "video_url"])
+        worksheet.append_row(["id", "author", "content", "created_at", "image_urls", "video_url"])
         return worksheet
 
 def get_replies_sheet():
@@ -76,10 +76,16 @@ def is_valid_url(url):
     url = str(url).strip()
     if url in ['', 'nan', 'None']:
         return False
-    # URL 형식 확인 (http로 시작하는지)
     if url.startswith('http://') or url.startswith('https://'):
         return True
     return False
+
+def parse_image_urls(image_urls_str):
+    """쉼표로 구분된 이미지 URL 문자열을 리스트로 변환"""
+    if not image_urls_str:
+        return []
+    urls = str(image_urls_str).split(',')
+    return [url.strip() for url in urls if is_valid_url(url.strip())]
 
 # ============ UI ============
 st.title("🏥 Morning Conference")
@@ -112,16 +118,20 @@ else:
             if content:
                 st.markdown(f"## {content}")
             
-            # ⭐ 이미지 표시 (URL 유효성 검사)
-            image_url = str(post.get('image_url', '') or post.get('image_name', '') or '').strip()
+            # ⭐ 여러 이미지 표시
+            image_urls_str = str(post.get('image_urls', '') or post.get('image_url', '') or post.get('image_name', '') or '')
+            image_urls = parse_image_urls(image_urls_str)
             
-            if is_valid_url(image_url):
+            if image_urls:
                 col1, col2, col3 = st.columns([1, 6, 1])
                 with col2:
-                    try:
-                        st.image(image_url, use_container_width=True)
-                    except Exception as e:
-                        st.warning(f"이미지를 불러올 수 없습니다.")
+                    for idx, img_url in enumerate(image_urls):
+                        try:
+                            st.image(img_url, use_container_width=True)
+                            if len(image_urls) > 1:
+                                st.caption(f"이미지 {idx + 1}/{len(image_urls)}")
+                        except Exception as e:
+                            st.warning(f"이미지를 불러올 수 없습니다: {img_url}")
             
             # ⭐ 동영상 표시
             video_url = str(post.get('video_url', '') or '').strip()
