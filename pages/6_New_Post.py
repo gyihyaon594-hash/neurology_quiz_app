@@ -39,7 +39,7 @@ def upload_image_to_imgbb(image_file):
             st.error("imgBB API 키가 설정되지 않았습니다.")
             return None
         
-        # ⭐ 파일 포인터를 처음으로 되돌림
+        # 파일 포인터를 처음으로 되돌림
         image_file.seek(0)
         
         # 이미지를 base64로 인코딩
@@ -78,18 +78,17 @@ def get_conference_sheet():
     try:
         return spreadsheet.worksheet("conference")
     except:
-        # ⭐ 기존 구조 유지 (5개 컬럼)
-        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=5)
-        worksheet.append_row(["id", "author", "content", "created_at", "image_name"])
+        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=6)
+        worksheet.append_row(["id", "author", "content", "created_at", "image_url", "video_url"])
         return worksheet
 
-def add_post(author, content, image_url=""):
-    """글 추가 (기존 구조에 맞춤)"""
+def add_post(author, content, image_url="", video_url=""):
+    """글 추가"""
     sheet = get_conference_sheet()
     post_id = datetime.now().strftime('%Y%m%d%H%M%S')
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    # ⭐ 기존 컬럼 순서: id, author, content, created_at, image_name
-    sheet.append_row([post_id, author, content, created_at, image_url])
+    # 컬럼 순서: id, author, content, created_at, image_url, video_url
+    sheet.append_row([post_id, author, content, created_at, image_url, video_url])
     return post_id
 
 def get_all_posts():
@@ -108,15 +107,27 @@ def delete_post(post_id):
             return True
     return False
 
-def update_post(post_id, content, image_url=""):
-    """글 수정 (기존 구조에 맞춤)"""
+def update_post(post_id, content, image_url="", video_url=""):
+    """글 수정"""
     sheet = get_conference_sheet()
     data = sheet.get_all_values()
     for idx, row in enumerate(data):
         if str(row[0]) == str(post_id):
-            sheet.update_cell(idx + 1, 3, content)  # C열: content
-            sheet.update_cell(idx + 1, 5, image_url)  # E열: image_name
+            sheet.update_cell(idx + 1, 3, content)      # C열: content
+            sheet.update_cell(idx + 1, 5, image_url)    # E열: image_url
+            sheet.update_cell(idx + 1, 6, video_url)    # F열: video_url
             return True
+    return False
+
+def is_valid_url(url):
+    """유효한 URL인지 확인"""
+    if not url:
+        return False
+    url = str(url).strip()
+    if url in ['', 'nan', 'None']:
+        return False
+    if url.startswith('http://') or url.startswith('https://'):
+        return True
     return False
 
 # ============ UI ============
@@ -203,6 +214,16 @@ else:
                 except:
                     st.warning("이미지를 불러올 수 없습니다. URL을 확인해주세요.")
         
+        # ⭐ 동영상 URL 입력
+        st.markdown("---")
+        st.markdown("### 🎬 동영상 첨부")
+        video_url = st.text_input("YouTube URL (선택)", placeholder="https://youtube.com/watch?v=...", key="new_video")
+        if video_url:
+            try:
+                st.video(video_url)
+            except:
+                st.warning("동영상을 불러올 수 없습니다.")
+        
         st.markdown("---")
         
         if st.button("등록", type="primary"):
@@ -219,7 +240,7 @@ else:
                         else:
                             st.warning("이미지 업로드 실패. 글은 이미지 없이 등록됩니다.")
                 
-                post_id = add_post("윤지환", content, final_image_url)
+                post_id = add_post("윤지환", content, final_image_url, video_url)
                 st.success(f"등록되었습니다! (ID: {post_id})")
                 st.balloons()
                 st.cache_data.clear()
@@ -247,7 +268,7 @@ else:
             
             for post in posts:
                 post_id = post['id']
-                content = post.get('content') or post.get('content_above', '')
+                content = post.get('content', '') or post.get('content_above', '')
                 is_editing = st.session_state.edit_post_id == post_id
                 
                 with st.container():
@@ -265,10 +286,10 @@ else:
                         st.markdown("---")
                         st.markdown("### 🖼️ 이미지 수정")
                         
-                        current_img = str(post.get('image_name') or post.get('image_url', '') or '')
+                        current_img = str(post.get('image_url', '') or post.get('image_name', '') or '').strip()
                         
-                        # 현재 이미지 표시
-                        if current_img:
+                        # 현재 이미지 표시 (URL 유효성 검사)
+                        if is_valid_url(current_img):
                             st.markdown("**현재 등록된 이미지:**")
                             try:
                                 st.image(current_img, use_container_width=True)
@@ -285,7 +306,7 @@ else:
                             key=f"edit_img_opt_{post_id}"
                         )
                         
-                        edit_image_url = current_img
+                        edit_image_url = current_img if is_valid_url(current_img) else ""
                         new_image_file = None
                         
                         if edit_img_option == "파일 업로드 (imgBB 저장)":
@@ -302,7 +323,7 @@ else:
                         elif edit_img_option == "URL 변경":
                             edit_image_url = st.text_input(
                                 "이미지 URL",
-                                value=current_img,
+                                value=current_img if is_valid_url(current_img) else "",
                                 key=f"edit_url_{post_id}"
                             )
                             if edit_image_url and edit_image_url != current_img:
@@ -315,6 +336,35 @@ else:
                         elif edit_img_option == "삭제":
                             edit_image_url = ""
                             st.warning("⚠️ 저장 시 이미지가 삭제됩니다.")
+                        
+                        # ⭐ 동영상 수정 섹션
+                        st.markdown("---")
+                        st.markdown("### 🎬 동영상 수정")
+                        
+                        current_video = str(post.get('video_url', '') or '').strip()
+                        
+                        # 현재 동영상 표시
+                        if is_valid_url(current_video):
+                            st.markdown("**현재 등록된 동영상:**")
+                            try:
+                                st.video(current_video)
+                            except:
+                                st.warning("현재 동영상을 불러올 수 없습니다.")
+                                st.caption(f"URL: {current_video}")
+                        else:
+                            st.info("현재 등록된 동영상이 없습니다.")
+                        
+                        edit_video_url = st.text_input(
+                            "YouTube URL", 
+                            value=current_video if is_valid_url(current_video) else "",
+                            key=f"edit_video_{post_id}"
+                        )
+                        if edit_video_url and edit_video_url != current_video and is_valid_url(edit_video_url):
+                            st.markdown("**새 동영상 미리보기:**")
+                            try:
+                                st.video(edit_video_url)
+                            except:
+                                st.warning("동영상을 불러올 수 없습니다.")
                         
                         st.markdown("---")
                         
@@ -332,9 +382,9 @@ else:
                                             st.success("이미지 업로드 완료!")
                                         else:
                                             st.warning("이미지 업로드 실패. 기존 이미지 유지.")
-                                            final_image_url = current_img
+                                            final_image_url = current_img if is_valid_url(current_img) else ""
                                 
-                                update_post(post_id, edit_content, final_image_url)
+                                update_post(post_id, edit_content, final_image_url, edit_video_url)
                                 st.session_state.edit_post_id = None
                                 st.success("수정되었습니다!")
                                 st.cache_data.clear()
@@ -348,11 +398,15 @@ else:
                     else:
                         col1, col2, col3 = st.columns([5, 1, 1])
                         with col1:
-                            # 이미지 아이콘 표시
-                            has_image = post.get('image_name') or post.get('image_url', '')
-                            image_icon = " 🖼️" if has_image else ""
+                            # 이미지/동영상 아이콘 표시
+                            media_icons = []
+                            if is_valid_url(post.get('image_url', '') or post.get('image_name', '')):
+                                media_icons.append("🖼️")
+                            if is_valid_url(post.get('video_url', '')):
+                                media_icons.append("🎬")
+                            media_str = " ".join(media_icons)
                             
-                            st.markdown(f"**{content[:50]}{'...' if len(content) > 50 else ''}**{image_icon}")
+                            st.markdown(f"**{content[:50]}{'...' if len(content) > 50 else ''}** {media_str}")
                             st.caption(f"{post['author']} · {post['created_at']}")
                         with col2:
                             if st.button("✏️", key=f"edit_{post_id}"):
