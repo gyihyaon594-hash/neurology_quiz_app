@@ -34,8 +34,9 @@ def get_conference_sheet():
     try:
         return spreadsheet.worksheet("conference")
     except:
-        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=7)
-        worksheet.append_row(["id", "author", "content_above", "content_below", "created_at", "image_url", "video_url"])
+        # 기존 구조 유지
+        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=5)
+        worksheet.append_row(["id", "author", "content", "created_at", "image_name"])
         return worksheet
 
 def get_replies_sheet():
@@ -93,15 +94,24 @@ else:
     for post in posts:
         with st.container():
             # 작성자, 시간
-            st.caption(f"{post['author']} · {post['created_at']}")
+            st.caption(f"{post.get('author', '')} · {post.get('created_at', '')}")
             
-            # 이미지 위 내용
-            content_above = post.get('content_above') or post.get('content', '')
-            if content_above:
-                st.markdown(f"## {content_above}")
+            # ⭐ 내용 표시 (여러 컬럼명 호환)
+            content = (
+                post.get('content_above') or 
+                post.get('content', '') or 
+                ''
+            )
+            if content:
+                st.markdown(f"## {content}")
             
-            # ⭐ 이미지 표시 (URL 방식으로 수정)
-            image_url = str(post.get('image_url', '') or post.get('image_name', '') or '').strip()
+            # ⭐ 이미지 표시 (여러 컬럼명 호환)
+            image_url = str(
+                post.get('image_url') or 
+                post.get('image_name', '') or 
+                ''
+            ).strip()
+            
             if image_url and image_url != 'nan' and image_url != '':
                 col1, col2, col3 = st.columns([1, 6, 1])
                 with col2:
@@ -110,8 +120,12 @@ else:
                     except Exception as e:
                         st.warning(f"이미지를 불러올 수 없습니다: {e}")
             
-            # ⭐ 동영상 표시 (추가)
-            video_url = str(post.get('video_url', '') or '').strip()
+            # ⭐ 동영상 표시 (여러 컬럼명 호환)
+            video_url = str(
+                post.get('video_url') or 
+                ''
+            ).strip()
+            
             if video_url and video_url != 'nan' and video_url != '':
                 col1, col2, col3 = st.columns([1, 6, 1])
                 with col2:
