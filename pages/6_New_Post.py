@@ -234,8 +234,10 @@ else:
                 
                 add_comment("윤지환", content_above, content_below, final_image_url, video_url)
                 st.success("등록되었습니다!")
+                st.balloons()
+                st.cache_data.clear()
                 time.sleep(1)
-                st.switch_page("pages/3_Morning Conference.py")
+                st.rerun()  # ⭐ switch_page 대신 rerun 사용
             else:
                 st.warning("내용을 입력해주세요.")
     
