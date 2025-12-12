@@ -34,9 +34,8 @@ def get_conference_sheet():
     try:
         return spreadsheet.worksheet("conference")
     except:
-        # 기존 구조 유지
-        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=5)
-        worksheet.append_row(["id", "author", "content", "created_at", "image_name"])
+        worksheet = spreadsheet.add_worksheet(title="conference", rows=1000, cols=6)
+        worksheet.append_row(["id", "author", "content", "created_at", "image_url", "video_url"])
         return worksheet
 
 def get_replies_sheet():
@@ -70,6 +69,18 @@ def add_reply(post_id, author, content):
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     sheet.append_row([reply_id, post_id, author, content, created_at])
 
+def is_valid_url(url):
+    """유효한 URL인지 확인"""
+    if not url:
+        return False
+    url = str(url).strip()
+    if url in ['', 'nan', 'None']:
+        return False
+    # URL 형식 확인 (http로 시작하는지)
+    if url.startswith('http://') or url.startswith('https://'):
+        return True
+    return False
+
 # ============ UI ============
 st.title("🏥 Morning Conference")
 
@@ -96,43 +107,32 @@ else:
             # 작성자, 시간
             st.caption(f"{post.get('author', '')} · {post.get('created_at', '')}")
             
-            # ⭐ 내용 표시 (여러 컬럼명 호환)
-            content = (
-                post.get('content_above') or 
-                post.get('content', '') or 
-                ''
-            )
+            # 내용 표시
+            content = post.get('content', '') or post.get('content_above', '') or ''
             if content:
                 st.markdown(f"## {content}")
             
-            # ⭐ 이미지 표시 (여러 컬럼명 호환)
-            image_url = str(
-                post.get('image_url') or 
-                post.get('image_name', '') or 
-                ''
-            ).strip()
+            # ⭐ 이미지 표시 (URL 유효성 검사)
+            image_url = str(post.get('image_url', '') or post.get('image_name', '') or '').strip()
             
-            if image_url and image_url != 'nan' and image_url != '':
+            if is_valid_url(image_url):
                 col1, col2, col3 = st.columns([1, 6, 1])
                 with col2:
                     try:
                         st.image(image_url, use_container_width=True)
                     except Exception as e:
-                        st.warning(f"이미지를 불러올 수 없습니다: {e}")
+                        st.warning(f"이미지를 불러올 수 없습니다.")
             
-            # ⭐ 동영상 표시 (여러 컬럼명 호환)
-            video_url = str(
-                post.get('video_url') or 
-                ''
-            ).strip()
+            # ⭐ 동영상 표시
+            video_url = str(post.get('video_url', '') or '').strip()
             
-            if video_url and video_url != 'nan' and video_url != '':
+            if is_valid_url(video_url):
                 col1, col2, col3 = st.columns([1, 6, 1])
                 with col2:
                     try:
                         st.video(video_url)
                     except Exception as e:
-                        st.warning(f"동영상을 불러올 수 없습니다: {e}")
+                        st.warning(f"동영상을 불러올 수 없습니다.")
             
             # 이미지 아래 내용
             content_below = post.get('content_below', '')
