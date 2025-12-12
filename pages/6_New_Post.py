@@ -13,7 +13,7 @@ def require_login():
     if 'user_id' not in st.session_state or not st.session_state.user_id:
         st.warning("등록이 필요합니다")
         time.sleep(3)
-        st.switch_page("app.py")
+        st.rerun()  # ⭐ switch_page 대신 rerun 사용
 
 require_login()
 
@@ -29,7 +29,7 @@ def get_sheets_client():
     )
     return gspread.authorize(credentials)
 
-# ⭐ imgBB에 이미지 업로드
+# ⭐ imgBB에 이미지 업로드 (수정됨)
 def upload_image_to_imgbb(image_file):
     """imgBB에 이미지 업로드하고 URL 반환"""
     try:
@@ -38,6 +38,9 @@ def upload_image_to_imgbb(image_file):
         if not api_key:
             st.error("imgBB API 키가 설정되지 않았습니다.")
             return None
+        
+        # ⭐ 파일 포인터를 처음으로 되돌림
+        image_file.seek(0)
         
         # 이미지를 base64로 인코딩
         image_data = base64.b64encode(image_file.read()).decode('utf-8')
@@ -79,12 +82,13 @@ def get_conference_sheet():
         worksheet.append_row(["id", "author", "content_above", "content_below", "created_at", "image_url", "video_url"])
         return worksheet
 
-def add_comment(author, content_above, content_below, image_url="", video_url=""):
+def add_post(author, content_above, content_below, image_url="", video_url=""):
     """글 추가"""
     sheet = get_conference_sheet()
-    comment_id = datetime.now().strftime('%Y%m%d%H%M%S')
+    post_id = datetime.now().strftime('%Y%m%d%H%M%S')
     created_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    sheet.append_row([comment_id, author, content_above, content_below, created_at, image_url, video_url])
+    sheet.append_row([post_id, author, content_above, content_below, created_at, image_url, video_url])
+    return post_id
 
 def get_all_posts():
     """모든 글 가져오기"""
@@ -228,16 +232,16 @@ else:
                         uploaded_url = upload_image_to_imgbb(uploaded_image)
                         if uploaded_url:
                             final_image_url = uploaded_url
-                            st.success("이미지 업로드 완료!")
+                            st.success(f"이미지 업로드 완료! URL: {uploaded_url}")
                         else:
                             st.warning("이미지 업로드 실패. 글은 이미지 없이 등록됩니다.")
                 
-                add_comment("윤지환", content_above, content_below, final_image_url, video_url)
-                st.success("등록되었습니다!")
+                post_id = add_post("윤지환", content_above, content_below, final_image_url, video_url)
+                st.success(f"등록되었습니다! (ID: {post_id})")
                 st.balloons()
                 st.cache_data.clear()
                 time.sleep(1)
-                st.rerun()  # ⭐ switch_page 대신 rerun 사용
+                st.rerun()
             else:
                 st.warning("내용을 입력해주세요.")
     
@@ -245,12 +249,18 @@ else:
     with tab2:
         st.divider()
         
+        if st.button("🔄 새로고침"):
+            st.cache_data.clear()
+            st.rerun()
+        
         posts = get_all_posts()
         
         if not posts:
             st.info("등록된 글이 없습니다.")
         else:
             posts = sorted(posts, key=lambda x: x['id'], reverse=True)
+            
+            st.markdown(f"**총 {len(posts)}개의 글**")
             
             for post in posts:
                 post_id = post['id']
@@ -398,11 +408,11 @@ else:
                             st.markdown(f"**{content[:50]}{'...' if len(content) > 50 else ''}** {media_str}")
                             st.caption(f"{post['author']} · {post['created_at']}")
                         with col2:
-                            if st.button("✏️ 수정", key=f"edit_{post_id}"):
+                            if st.button("✏️", key=f"edit_{post_id}"):
                                 st.session_state.edit_post_id = post_id
                                 st.rerun()
                         with col3:
-                            if st.button("🗑️ 삭제", key=f"del_{post_id}"):
+                            if st.button("🗑️", key=f"del_{post_id}"):
                                 st.session_state[f"confirm_delete_{post_id}"] = True
                         
                         if st.session_state.get(f"confirm_delete_{post_id}", False):
